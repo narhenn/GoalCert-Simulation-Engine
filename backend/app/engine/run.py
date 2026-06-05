@@ -24,7 +24,7 @@ from .kpis import compute_kpis
 from .posture import Posture, build_posture
 from .resolve import resolver as R
 from .result import ObjectiveStatus, RunResult
-from .scenario import Scenario, TargetSelector
+from .scenario import REGULATORY_CATALOG, Scenario, TargetSelector
 from .workflows import get_workflow
 from .world import AssetInstance, World
 
@@ -192,6 +192,7 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
     first_detection_t: int | None = None
     esc_correct = esc_total = 0
     hunt_found = hunt_planted = 0
+    persistence_planted: list[dict] = []  # {type, technique, asset_id, asset_name, t}
     scores = {"red": 0, "blue": 0, "soc": 0, "mgmt": 0, "ot": 0}
     soc_max_p = PLevel.NONE
     escalated: set[str] = set()
@@ -255,16 +256,76 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
             if res.status == "blocked":
                 blocked += 1
                 scores["blue"] += spec.score.blue_contain
-                if red_stage:
-                    set_task(t, "red", red_stage, "blocked", f"{spec.name} blocked", phase)
                 emit(t, EventType.BLOCK, side=Side.BLUE, actor=res.prevented_by or "control",
                      phase=phase, severity=Severity.MEDIUM, technique=spec.mitre,
                      title=f"Prevented: {spec.name}",
                      message=f"{spec.name} blocked by {res.prevented_by} ({tname})",
                      asset_id=target.id if target else None, asset_label=tname if target else None)
+                # Fallback technique: if blocked and step has a fallback, try it
+                if step.fallback_technique:
+                    try:
+                        fb_spec = get_technique(step.fallback_technique)
+                        fb_res = R.resolve(fb_spec, world, target, config, posture)
+                        if fb_res.status == "success":
+                            successes += 1
+                            scores["red"] += fb_spec.score.red_success
+                            R.apply_effects(fb_spec, world, target)
+                            if red_stage:
+                                set_task(t, "red", red_stage, "done", f"Fallback: {fb_spec.name} succeeded", phase)
+                            emit(t, EventType.ATTACK, side=Side.RED, actor="red-team", phase=phase,
+                                 severity=fb_spec.severity, technique=fb_spec.mitre,
+                                 title=f"Fallback: {fb_spec.name}",
+                                 message=f"{spec.name} blocked; pivoted to {fb_spec.name} ({tname})",
+                                 asset_id=target.id if target else None, asset_label=tname if target else None,
+                                 data={"fallback_of": spec.key})
+                            det = R.compute_detection(fb_spec, world, target, config, t, posture)
+                            if det is not None:
+                                dt, ctype, cid = det
+                                push(dt, "detection", {"kind": "detection", "spec_key": fb_spec.key,
+                                     "success_t": t, "target_id": target.id if target else None,
+                                     "phase": phase, "ctype": ctype, "cid": cid})
+                            score_event(t)
+                            continue
+                        else:
+                            emit(t, EventType.FAIL, side=Side.RED, actor="red-team", phase=phase,
+                                 severity=Severity.LOW, technique=fb_spec.mitre,
+                                 title=f"Fallback also failed: {fb_spec.name}",
+                                 message=f"Fallback {fb_spec.name} also {fb_res.status}",
+                                 asset_id=target.id if target else None, asset_label=tname if target else None)
+                    except KeyError:
+                        pass  # invalid fallback key, ignore
+                if red_stage:
+                    set_task(t, "red", red_stage, "blocked", f"{spec.name} blocked", phase)
                 score_event(t)
 
             elif res.status == "failed":
+                # Fallback on precondition failure too
+                if step.fallback_technique:
+                    try:
+                        fb_spec = get_technique(step.fallback_technique)
+                        fb_res = R.resolve(fb_spec, world, target, config, posture)
+                        if fb_res.status == "success":
+                            successes += 1
+                            scores["red"] += fb_spec.score.red_success
+                            R.apply_effects(fb_spec, world, target)
+                            if red_stage:
+                                set_task(t, "red", red_stage, "done", f"Fallback: {fb_spec.name}", phase)
+                            emit(t, EventType.ATTACK, side=Side.RED, actor="red-team", phase=phase,
+                                 severity=fb_spec.severity, technique=fb_spec.mitre,
+                                 title=f"Fallback: {fb_spec.name}",
+                                 message=f"{spec.name} failed; adapted to {fb_spec.name} ({tname})",
+                                 asset_id=target.id if target else None, asset_label=tname if target else None,
+                                 data={"fallback_of": spec.key})
+                            det = R.compute_detection(fb_spec, world, target, config, t, posture)
+                            if det is not None:
+                                dt, ctype, cid = det
+                                push(dt, "detection", {"kind": "detection", "spec_key": fb_spec.key,
+                                     "success_t": t, "target_id": target.id if target else None,
+                                     "phase": phase, "ctype": ctype, "cid": cid})
+                            score_event(t)
+                            continue
+                    except KeyError:
+                        pass
                 if red_stage and task_status.get(("red", red_stage)) == "active":
                     set_task(t, "red", red_stage, "blocked", f"{spec.name} could not proceed", phase)
                 emit(t, EventType.FAIL, side=Side.RED, actor="red-team", phase=phase,
@@ -282,12 +343,22 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                     target.health = Health.DEGRADED
                 if step.technique in PERSISTENCE_TECHNIQUES:
                     hunt_planted += 1
+                    ptype = step.persistence_type or step.technique
+                    persistence_planted.append({
+                        "type": ptype, "technique": step.technique,
+                        "asset_id": target.id if target else None,
+                        "asset_name": tname if target else None, "t": t,
+                    })
                 if red_stage:
                     set_task(t, "red", red_stage, "done", f"{spec.name} succeeded", phase)
+                attack_data: dict = {}
+                if step.persistence_type:
+                    attack_data["persistence_type"] = step.persistence_type
                 emit(t, EventType.ATTACK, side=Side.RED, actor="red-team", phase=phase,
                      severity=spec.severity, technique=spec.mitre, title=spec.name,
                      message=(step.label or spec.name) + (f" → {tname}" if target else ""),
-                     asset_id=target.id if target else None, asset_label=tname if target else None)
+                     asset_id=target.id if target else None, asset_label=tname if target else None,
+                     data=attack_data if attack_data else {})
                 for em in R.build_emits(spec, world, target):
                     emit(t, EventType.TELEMETRY, actor=em.channel, phase=phase, severity=em.severity,
                          channel=em.channel, technique=spec.mitre, title=spec.name, message=em.text,
@@ -394,33 +465,97 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
             if target is None or target.security_state == SecurityState.CONTAINED:
                 continue
             is_dc = target.type_key == "domain_controller"
-            if is_dc and posture.decision_dc and not p.get("approved"):
-                emit(t, EventType.DECISION, side=Side.BLUE, actor="ir-team", phase=p["phase"],
-                     severity=Severity.MEDIUM, title="Decision gate: isolate DC?",
-                     message=f"Isolating {target.name} (DC) requires CISO approval — holding for sign-off",
-                     asset_id=target.id, asset_label=target.name, data={"gate": "isolate_dc"})
-                scores["blue"] += 10
-                set_task(t, "blue", "blue.dc_gate", "done", "DC isolation gate followed", p["phase"])
-                p["approved"] = True
-                push(t + config.latency(DC_APPROVAL_BASE), "blue_contain", p)
+            phase = p["phase"]
+
+            # ---- Decision gate evaluation (IRP ch.03) ----
+            gates = {g.trigger: g for g in scenario.decision_gates}
+            gate_delay = 0
+
+            # Gate: DC compromised — require CISO approval
+            if is_dc and "dc_compromised" in gates and posture.decision_dc and not p.get("approved_dc"):
+                gate = gates["dc_compromised"]
+                emit(t, EventType.DECISION, side=Side.BLUE, actor="ir-team", phase=phase,
+                     severity=Severity.HIGH, title=f"Decision gate: {gate.name}",
+                     message=f"{gate.description} ({target.name})",
+                     asset_id=target.id, asset_label=target.name,
+                     data={"gate": gate.id, "correct_action": gate.correct_action,
+                           "approval_from": gate.approval_required_from})
+                scores["blue"] += gate.score_correct
+                set_task(t, "blue", "blue.dc_gate", "done", "DC isolation gate followed", phase)
+                p["approved_dc"] = True
+                gate_delay += gate.delay_s
+                push(t + config.latency(gate_delay), "blue_contain", p)
                 continue
+
+            # Gate: Active exfil — block egress first (scored, not blocking)
+            is_exfil = bool(world.attacker.flags.get("exfiltrated") or world.attacker.flags.get("staged"))
+            if is_exfil and "active_exfil" in gates and not p.get("scored_exfil"):
+                gate = gates["active_exfil"]
+                p["scored_exfil"] = True
+                if posture.prevent_egress:
+                    emit(t, EventType.DECISION, side=Side.BLUE, actor="ir-team", phase=phase,
+                         severity=Severity.MEDIUM, title=f"Decision gate: {gate.name}",
+                         message=f"Egress blocked before host isolation — correct (IRP B.C.02)",
+                         data={"gate": gate.id, "followed": True})
+                    scores["blue"] += gate.score_correct
+                    set_task(t, "blue", "blue.block_egress", "done", "Egress blocked first (correct)", phase)
+                else:
+                    emit(t, EventType.DECISION, side=Side.BLUE, actor="ir-team", phase=phase,
+                         severity=Severity.MEDIUM, title=f"Decision gate: {gate.name}",
+                         message=f"Host isolated without blocking egress first — attacker may switch channel",
+                         data={"gate": gate.id, "followed": False})
+                    scores["blue"] += gate.score_wrong
+
+            # Gate: Multi-host — don't isolate network-wide (informational scoring)
+            if contained >= 2 and "multi_host" in gates and not p.get("scored_multi"):
+                gate = gates["multi_host"]
+                p["scored_multi"] = True
+                emit(t, EventType.DECISION, side=Side.BLUE, actor="ir-team", phase=phase,
+                     severity=Severity.MEDIUM, title=f"Decision gate: {gate.name}",
+                     message=f"Multiple hosts compromised — isolating confirmed hosts only, monitoring suspected",
+                     data={"gate": gate.id, "hosts_contained": contained + 1})
+                scores["blue"] += gate.score_correct
+
+            # Gate: Ransomware spreading — emergency segmentation
+            if world.attacker.flags.get("ransomware") and "ransomware_spreading" in gates and not p.get("scored_ransom"):
+                gate = gates["ransomware_spreading"]
+                p["scored_ransom"] = True
+                if posture.segment:
+                    emit(t, EventType.DECISION, side=Side.BLUE, actor="ir-team", phase=phase,
+                         severity=Severity.CRITICAL, title=f"Decision gate: {gate.name}",
+                         message=f"Emergency VLAN segmentation activated — correct response to ransomware",
+                         data={"gate": gate.id, "followed": True})
+                    scores["blue"] += gate.score_correct
+                    set_task(t, "blue", "blue.segmentation", "done", "Emergency segmentation (ransomware)", phase)
+                else:
+                    emit(t, EventType.DECISION, side=Side.BLUE, actor="ir-team", phase=phase,
+                         severity=Severity.CRITICAL, title=f"Decision gate: {gate.name}",
+                         message=f"Ransomware spreading but no emergency segmentation — lateral damage continues",
+                         data={"gate": gate.id, "followed": False})
+                    scores["blue"] += gate.score_wrong
+
+            # ---- Proceed with containment ----
             set_task(t, "blue", "blue.identify", "done",
                      "Scoped incident; memory captured first" if evidence_ok
-                     else "Scoped incident (no memory image)", p["phase"])
-            set_task(t, "blue", "blue.memory_first", "done", "Memory image acquired", p["phase"])
+                     else "Scoped incident (no memory image)", phase)
+            if evidence_ok:
+                set_task(t, "blue", "blue.memory_first", "done", "Memory image acquired", phase)
             target.security_state = SecurityState.CONTAINED
             if target.id in world.attacker.footholds:
                 world.attacker.footholds.remove(target.id)
             contained += 1
             mttc.append(t - p["alert_t"])
-            scores["blue"] += spec.score.blue_contain + (15 if evidence_ok else 0) + (10 if is_dc else 0)
-            set_task(t, "blue", "blue.edr_contain", "done", f"{target.name} isolated / contained", p["phase"])
-            emit(t, EventType.RESPONSE, side=Side.BLUE, actor="ir-team", phase=p["phase"],
+            evidence_bonus = 15 if evidence_ok else 0
+            dc_bonus = 10 if is_dc else 0
+            scores["blue"] += spec.score.blue_contain + evidence_bonus + dc_bonus
+            set_task(t, "blue", "blue.edr_contain", "done", f"{target.name} isolated / contained", phase)
+            emit(t, EventType.RESPONSE, side=Side.BLUE, actor="ir-team", phase=phase,
                  severity=Severity.MEDIUM, title=f"Contained: {target.name}",
                  message=f"{target.name} isolated; foothold revoked"
                          + (" (memory preserved)" if evidence_ok else "") + f" (MTTC {t - p['alert_t']}s)",
                  asset_id=target.id, asset_label=target.name,
-                 data={"mttc_s": t - p["alert_t"], "evidence_integrity": evidence_ok})
+                 data={"mttc_s": t - p["alert_t"], "evidence_integrity": evidence_ok,
+                       "gates_evaluated": [g.id for g in scenario.decision_gates]})
             emit(t, EventType.STATE, actor="env", asset_id=target.id, asset_label=target.name,
                  title="State change", message=f"{target.name}: contained",
                  data={"security_state": target.security_state.value, "health": target.health.value})
@@ -428,7 +563,7 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
             if posture.persistence_strong and not posture.eradicates \
                     and target.id not in reestablished:
                 push(t + config.latency(BLUE_CONTAIN_BASE * 0.8), "reestablish",
-                     {"kind": "reestablish", "target_id": target.id, "phase": p["phase"]})
+                     {"kind": "reestablish", "target_id": target.id, "phase": phase})
             score_event(t)
 
         elif kind == "mgmt":
@@ -436,16 +571,54 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
             on_time = (t - p["start"]) <= p["deadline_s"]
             scores["mgmt"] += 40 if on_time else 15
             set_task(t, "mgmt", step_id, "done", p["label"] + ("" if on_time else " (late)"), p["phase"])
+            notify_data: dict = {"on_time": on_time, "deadline_s": p["deadline_s"]}
+            if p.get("framework_id"):
+                notify_data["framework_id"] = p["framework_id"]
+                notify_data["framework_name"] = p.get("framework_name", "")
+                notify_data["deadline_hours"] = p.get("deadline_hours", 0)
+                notify_data["penalty"] = p.get("penalty", "")
+            deadline_label = f"{p['deadline_s'] // 3600}h" if p["deadline_s"] >= 3600 else f"{p['deadline_s'] // 60}m"
             emit(t, EventType.NOTIFY, side=Side.MGMT, actor="incident-commander", phase=p["phase"],
                  severity=Severity.HIGH, title=p["label"],
-                 message=p["label"] + (f" — within {p['deadline_s'] // 60}m window" if on_time
-                                       else " — DEADLINE MISSED"),
-                 data={"on_time": on_time, "deadline_s": p["deadline_s"]})
+                 message=p["label"] + (f" — within {deadline_label} window" if on_time
+                                       else f" — DEADLINE MISSED ({deadline_label})"),
+                 data=notify_data)
             if step_id == "mgmt.declare_p0" and "regulatory" not in mgmt_done:
                 mgmt_done.add("regulatory")
-                push(t + config.latency(MGMT_NOTIFY_BASE), "mgmt",
-                     {"kind": "mgmt", "step": "mgmt.regulatory", "deadline_s": 43200, "start": t,
-                      "phase": p["phase"], "label": "Regulatory / critical-infra notification"})
+                # Schedule framework-specific regulatory notifications (IRP ch.12)
+                fw_ids = scenario.regulatory_frameworks or ["ndb"]
+                triggered_any = False
+                a = world.attacker
+                for fid in fw_ids:
+                    fw = REGULATORY_CATALOG.get(fid)
+                    if fw is None:
+                        continue
+                    # Check trigger condition — P0 declaration itself is a material event
+                    fires = False
+                    if fw.trigger == "data_breach":
+                        # P0 = domain compromise = potential data breach even before exfil
+                        fires = True
+                    elif fw.trigger == "financial":
+                        fires = True  # P0 on a financial system is always reportable
+                    elif fw.trigger == "critical_infra":
+                        fires = True  # P0 = material cyber incident
+                    elif fw.trigger == "any_material":
+                        fires = True
+                    elif fw.trigger == "ransomware" and a.flags.get("ransomware"):
+                        fires = True
+                    if fires:
+                        triggered_any = True
+                        deadline = int(fw.deadline_hours * 3600) if fw.deadline_hours > 0 else 3600
+                        push(t + config.latency(MGMT_NOTIFY_BASE), "mgmt",
+                             {"kind": "mgmt", "step": "mgmt.regulatory", "deadline_s": deadline, "start": t,
+                              "phase": p["phase"],
+                              "label": f"{fw.name}: notify {fw.recipient}",
+                              "framework_id": fid, "framework_name": fw.name,
+                              "deadline_hours": fw.deadline_hours, "penalty": fw.penalty})
+                if not triggered_any:
+                    push(t + config.latency(MGMT_NOTIFY_BASE), "mgmt",
+                         {"kind": "mgmt", "step": "mgmt.regulatory", "deadline_s": 43200, "start": t,
+                          "phase": p["phase"], "label": "Regulatory assessment — no specific obligation triggered"})
             score_event(t)
 
         elif kind == "ot_ops":
@@ -472,11 +645,18 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
 
     if contained > 0:
         if posture.eradicates:
-            set_task(duration_s, "blue", "blue.eradicate", "done", "Persistence removed; krbtgt rotated ×2")
+            erad_detail = f"Persistence removed ({len(persistence_planted)} mechanism(s))"
+            if persistence_planted:
+                ptypes = sorted({p["type"] for p in persistence_planted})
+                erad_detail += f": {', '.join(ptypes)}"
+            set_task(duration_s, "blue", "blue.eradicate", "done", erad_detail + "; krbtgt rotated ×2")
             set_task(duration_s, "blue", "blue.krbtgt", "done", "krbtgt reset ×2; domain creds rotated")
             set_task(duration_s, "blue", "blue.reimage", "done", "Hosts reimaged from clean baseline")
         else:
-            set_task(duration_s, "blue", "blue.eradicate", "blocked", "Eradication incomplete — persistence remains")
+            surviving = len(persistence_planted)
+            set_task(duration_s, "blue", "blue.eradicate", "blocked",
+                     f"Eradication incomplete — {surviving} persistence mechanism(s) remain"
+                     if surviving else "Eradication incomplete — persistence remains")
         set_task(duration_s, "blue", "blue.backups", "done" if posture.recovery else "blocked",
                  "Restored from offline backups" if posture.recovery else "No tested backups — recovery impaired")
         set_task(duration_s, "blue", "blue.lessons", "done", "After-action report produced")
@@ -515,6 +695,8 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
         "attacker_max_creds": a.cred_scope.value, "exfiltrated": bool(a.flags.get("exfiltrated")),
         "ransomware": bool(a.flags.get("ransomware")), "ot_impact": bool(a.flags.get("ot_impact")),
         "backups_enabled": backups_enabled,
+        "persistence_planted": persistence_planted,
+        "persistence_eradicated": posture.eradicates,
         "posture": {
             "prevent_egress": posture.prevent_egress, "segmentation": posture.segment,
             "eradicates": posture.eradicates, "recovery": posture.recovery,

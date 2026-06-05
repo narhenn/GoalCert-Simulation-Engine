@@ -114,6 +114,7 @@ def _attack_path(run: dict) -> list[dict]:
     for e in run["events"]:
         etype = e.get("type")
         if etype == "attack":
+            data = e.get("data", {})
             path.append({
                 "t": e["t"], "clock": _fmt(e["t"]),
                 "technique": e.get("technique", ""),
@@ -122,7 +123,8 @@ def _attack_path(run: dict) -> list[dict]:
                 "target_name": e.get("asset_label", ""),
                 "phase": e.get("phase", ""),
                 "severity": e.get("severity", "medium"),
-                "result": "success",
+                "result": "fallback" if data.get("fallback_of") else "success",
+                "fallback_of": data.get("fallback_of"),
             })
         elif etype == "block":
             path.append({
@@ -506,23 +508,47 @@ def _key_findings(run: dict) -> dict:
     }
 
 
-def _regulatory_impact(run: dict) -> list[str]:
+def _regulatory_impact(run: dict) -> list[dict]:
+    """Produce structured regulatory impact entries, enriched by framework data from NOTIFY events."""
     s = run["summary"]
-    industry = run.get("industry", "generic")
-    items: list[str] = []
+    events = run.get("events", [])
+
+    # Collect triggered frameworks from NOTIFY events
+    frameworks: list[dict] = []
+    for e in events:
+        if e.get("type") == "notify":
+            data = e.get("data", {})
+            if data.get("framework_id"):
+                frameworks.append({
+                    "framework_id": data["framework_id"],
+                    "framework_name": data.get("framework_name", ""),
+                    "deadline_hours": data.get("deadline_hours", 0),
+                    "penalty": data.get("penalty", ""),
+                    "on_time": data.get("on_time", False),
+                    "message": e.get("message", ""),
+                })
+
+    if frameworks:
+        return frameworks
+
+    # Fallback: generic impact text if no framework events
+    items: list[dict] = []
     if s.get("exfiltrated"):
-        items.append("Personal/IP data breach: breach-notification obligations likely triggered "
-                     "(e.g. GDPR 72-hour notice, PDPA, sector regulators).")
+        items.append({"framework_name": "Data Breach Notification", "message":
+            "Personal/IP data breach: breach-notification obligations likely triggered.",
+            "deadline_hours": 720, "penalty": "", "on_time": False})
     if s.get("ransomware"):
-        items.append("Material operational disruption: may require disclosure to regulators and, "
-                     "for listed entities, securities filings.")
+        items.append({"framework_name": "Operational Disruption Disclosure", "message":
+            "Material operational disruption: may require disclosure to regulators.",
+            "deadline_hours": 0, "penalty": "", "on_time": False})
     if s.get("ot_impact"):
-        items.append("Safety-critical / critical-infrastructure impact: mandatory reporting to "
-                     "national CERT / sector authority; potential safety investigation.")
-    if industry in ("finance", "manufacturing", "energy", "healthcare") and items:
-        items.append(f"Sector-specific obligations apply for {industry}.")
+        items.append({"framework_name": "Critical Infrastructure Reporting", "message":
+            "Safety-critical impact: mandatory reporting to national CERT / sector authority.",
+            "deadline_hours": 12, "penalty": "", "on_time": False})
     if not items:
-        items.append("No reportable regulatory impact identified. Incident contained pre-impact.")
+        items.append({"framework_name": "No Impact", "message":
+            "No reportable regulatory impact identified. Incident contained pre-impact.",
+            "deadline_hours": 0, "penalty": "", "on_time": True})
     return items
 
 
@@ -618,6 +644,65 @@ def _corrective_actions(run: dict) -> list[dict]:
     return actions
 
 
+def _persistence_report(run: dict) -> dict:
+    """Red persistence planted vs Blue eradication — granular matching from IRP ch.04."""
+    s = run["summary"]
+    planted = s.get("persistence_planted", [])
+    eradicated = s.get("persistence_eradicated", False)
+
+    # Labels for persistence types (IRP ch.04 R.E list)
+    type_labels = {
+        "registry_run_key": "Registry Run Key (HKCU\\...\\Run)",
+        "scheduled_task": "Scheduled Task (T1053)",
+        "process_injection": "Process Injection into LSASS",
+        "rogue_account": "Rogue AD Account / Service Account",
+        "golden_ticket": "Golden Ticket (krbtgt hash)",
+        "log_deletion": "Log Deletion / Anti-forensics",
+        "persistence_task": "Scheduled Task / Service Persistence",
+        "cloud_persistence": "Cloud Account Persistence",
+    }
+
+    items = []
+    for p in planted:
+        ptype = p.get("type", "unknown")
+        items.append({
+            "type": ptype,
+            "label": type_labels.get(ptype, ptype),
+            "technique": p.get("technique", ""),
+            "asset": p.get("asset_name", ""),
+            "asset_id": p.get("asset_id", ""),
+            "t": p.get("t", 0),
+            "clock": _fmt(p.get("t", 0)),
+            "eradicated": eradicated,
+        })
+
+    return {
+        "total_planted": len(planted),
+        "total_eradicated": len(planted) if eradicated else 0,
+        "eradication_complete": eradicated,
+        "eradication_rate": 1.0 if eradicated else 0.0,
+        "items": items,
+    }
+
+
+def _decision_gate_report(run: dict) -> list[dict]:
+    """Extract decision gate events from the timeline for the report."""
+    gates = []
+    for e in run["events"]:
+        if e.get("type") == "decision":
+            data = e.get("data", {})
+            gates.append({
+                "t": e["t"], "clock": _fmt(e["t"]),
+                "gate": data.get("gate", ""),
+                "title": e.get("title", ""),
+                "message": e.get("message", ""),
+                "followed": data.get("followed"),
+                "correct_action": data.get("correct_action", ""),
+                "approval_from": data.get("approval_from", ""),
+            })
+    return gates
+
+
 def generate_report(run: dict) -> dict:
     return {
         "scenario_name": run.get("scenario_name"),
@@ -635,6 +720,8 @@ def generate_report(run: dict) -> dict:
         "dwell_analysis": _dwell_analysis(run),
         "zone_analysis": _zone_analysis(run),
         "credential_timeline": _credential_timeline(run),
+        "persistence_report": _persistence_report(run),
+        "decision_gates": _decision_gate_report(run),
         "regulatory_impact": _regulatory_impact(run),
         "financial_impact": _financial_impact(run),
         "recommendations": _recommendations(run),

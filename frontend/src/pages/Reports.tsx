@@ -260,10 +260,53 @@ export default function Reports() {
         </div>
       </div>
 
+      {/* ============ PERSISTENCE vs ERADICATION ============ */}
+      {(report as any).persistence_report && (report as any).persistence_report.total_planted > 0 && (() => {
+        const pr = (report as any).persistence_report;
+        return (
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card-header">
+              <div className="card-title"><i className="fa fa-bug" /> Persistence vs Eradication (IRP ch.04)</div>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: pr.eradication_complete ? "var(--gc-green)" : "var(--gc-red)" }}>
+                {pr.total_eradicated}/{pr.total_planted} eradicated {pr.eradication_complete ? "(complete)" : "(INCOMPLETE)"}
+              </span>
+            </div>
+            <table className="score-table">
+              <thead><tr><th>Type</th><th>Asset</th><th>Time</th><th>Status</th></tr></thead>
+              <tbody>
+                {pr.items.map((item: any, i: number) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 600, fontSize: 12 }}>{item.label}</td>
+                    <td className="muted" style={{ fontSize: 12 }}>{item.asset || "-"}</td>
+                    <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{item.clock}</td>
+                    <td style={{ textAlign: "center" }}>
+                      {item.eradicated
+                        ? <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "rgba(0,230,118,.12)", color: "var(--gc-green)", fontWeight: 600 }}>ERADICATED</span>
+                        : <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "rgba(255,71,87,.12)", color: "var(--gc-red)", fontWeight: 600 }}>SURVIVING</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
+
       <div className="grid-2" style={{ marginBottom: 20 }}>
         <div className="card">
           <div className="card-title" style={{ marginBottom: 12 }}><i className="fa fa-gavel" /> Regulatory Impact</div>
-          {report.regulatory_impact.map((r, i) => <div key={i} className="alert-item warning" style={{ fontSize: 12 }}><i className="fa fa-balance-scale" style={{ color: "var(--gc-yellow)", marginRight: 8 }} />{r}</div>)}
+          {report.regulatory_impact.map((r, i) => (
+            <div key={i} className="alert-item warning" style={{ fontSize: 12, display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <i className="fa fa-balance-scale" style={{ color: r.on_time ? "var(--gc-green)" : "var(--gc-yellow)", marginRight: 4, marginTop: 2 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>{r.framework_name}{r.deadline_hours > 0 ? ` (${r.deadline_hours >= 24 ? `${Math.round(r.deadline_hours / 24)}d` : `${r.deadline_hours}h`})` : ""}</div>
+                <div style={{ fontSize: 11, color: "var(--gc-muted)", marginTop: 2 }}>{r.message}</div>
+                {r.penalty && <div style={{ fontSize: 10, color: "var(--gc-red)", marginTop: 2 }}>{r.penalty}</div>}
+              </div>
+              {r.on_time !== undefined && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: r.on_time ? "rgba(0,230,118,.12)" : "rgba(255,71,87,.12)", color: r.on_time ? "var(--gc-green)" : "var(--gc-red)", whiteSpace: "nowrap" }}>{r.on_time ? "ON TIME" : "LATE"}</span>}
+            </div>
+          ))}
           <div className="card-title" style={{ margin: "16px 0 8px" }}><i className="fa fa-coins" /> Financial Impact Drivers</div>
           {fin.drivers.map((d, i) => <div key={i} className="muted" style={{ fontSize: 12, padding: "3px 0" }}>- {d}</div>)}
           {(fin.estimate_low_usd + fin.estimate_high_usd > 0) && <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(255,71,87,.06)", borderRadius: 8, border: "1px solid rgba(255,71,87,.15)", fontFamily: "var(--mono)", fontSize: 14, fontWeight: 700, color: "var(--gc-red)" }}>${(fin.estimate_low_usd / 1e6).toFixed(1)}M - ${(fin.estimate_high_usd / 1e6).toFixed(1)}M estimated</div>}
