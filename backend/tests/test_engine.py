@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 
-from app.engine.config import RunConfig
+from app.engine.config import RunConfig, WorkflowConfig
 from app.engine.enums import Difficulty, EventType
 from app.engine.environment import EnvironmentSpec
 from app.engine.run import run
@@ -57,10 +57,13 @@ def test_all_phases_are_entered():
 
 def test_emergence_strong_vs_weak_posture():
     s = _scenario()
+    # Strong = controls on + default (competent) team workflows + easy adversary.
     strong = run(s, _env_with(default=True),
                  RunConfig(difficulty=Difficulty.EASY, readiness=95))
+    # Weak = controls off + defender workflows stripped + expert adversary.
     weak = run(s, _env_with(default=False),
-               RunConfig(difficulty=Difficulty.EXPERT, readiness=15))
+               RunConfig(difficulty=Difficulty.EXPERT, readiness=15,
+                         workflow_config=WorkflowConfig(enabled={"blue": [], "soc": [], "ot": [], "mgmt": []})))
 
     # Strong posture blocks the kill chain early; weak posture lets it run to impact.
     assert strong.summary["ransomware"] is False

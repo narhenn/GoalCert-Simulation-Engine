@@ -28,9 +28,14 @@ export interface ControlSpec {
 export interface Topology { assets: AssetSpec[]; controls: ControlSpec[]; }
 
 export interface RoleInfo { role: string; name: string; mission: string; description: string; }
+export interface TaskEffect { kind: string; scope?: string | null; magnitude: number; }
+export interface WorkflowStepDef {
+  id: string; team: string; kind: string; label: string; description: string;
+  phase_hint: string; irp_ref: string; default_enabled: boolean; removable: boolean;
+  effects: TaskEffect[];
+}
 export interface WorkflowDef {
-  actor: string; id: string; name: string; description: string;
-  steps: { id: string; kind: string; label: string; description: string; phase_hint: string; scored: boolean }[];
+  actor: string; id: string; name: string; description: string; steps: WorkflowStepDef[];
 }
 export interface RoleTask { id: string; label: string; description?: string; status: string; }
 
@@ -38,6 +43,7 @@ export interface RunConfig {
   difficulty: "Easy" | "Medium" | "Hard" | "Expert";
   readiness: number; duration_min: number; industry?: string; seed?: number;
   focus_role?: string; phase_range?: [number, number] | null;
+  workflow_config?: { enabled: Record<string, string[]> };
 }
 export interface RunSummary {
   id: string; scenario_id: string; scenario_name: string; operator?: string | null;

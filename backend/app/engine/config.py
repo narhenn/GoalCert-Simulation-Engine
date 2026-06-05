@@ -6,6 +6,18 @@ from pydantic import BaseModel, Field
 from .enums import Difficulty, Side
 
 
+class WorkflowConfig(BaseModel):
+    """Operator customization of each team's workflow.
+
+    `enabled[actor]` = explicit list of enabled task ids. If an actor is absent, that team's
+    default-enabled tasks are used. This is how the operator adds/removes tasks per team.
+    """
+    enabled: dict[str, list[str]] = Field(default_factory=dict)
+
+    def enabled_set(self, actor: str) -> set[str] | None:
+        return set(self.enabled[actor]) if actor in self.enabled else None
+
+
 class RunConfig(BaseModel):
     """Operator configuration for a single simulation run.
 
@@ -27,6 +39,8 @@ class RunConfig(BaseModel):
     role_drivers: dict[str, str] = Field(default_factory=dict)
     # Optional [start_phase, end_phase] (1-based inclusive) to run a single-phase drill.
     phase_range: tuple[int, int] | None = None
+    # Per-team workflow customization (which tasks are enabled / added / removed).
+    workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
 
     # Reserved for a future seeded-stochastic resolver. Unused in the deterministic core.
     seed: int = 0

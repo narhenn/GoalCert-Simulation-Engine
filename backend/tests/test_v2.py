@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 
-from app.engine.config import RunConfig
+from app.engine.config import RunConfig, WorkflowConfig
 from app.engine.enums import Difficulty, EventType, Side
 from app.engine.environment import EnvironmentSpec
 from app.engine.run import run
@@ -78,3 +78,63 @@ def test_per_team_scenarios_seeded():
     for sid in ("operation_black_phoenix_red", "operation_black_phoenix_soc",
                 "operation_black_phoenix_blue"):
         assert get_seed_scenario(sid) is not None
+
+
+# --------------------------------------------------------------------------- #
+#  Workflow customization mechanically changes outcomes (the core requirement)
+# --------------------------------------------------------------------------- #
+def _wc(**teams) -> WorkflowConfig:
+    return WorkflowConfig(enabled=teams)
+
+
+def test_block_egress_task_stops_exfiltration():
+    s = _scn()
+    base = dict(difficulty=Difficulty.EXPERT, readiness=50)
+    # controls off so only the Blue task decides; SOC off so containment doesn't interfere
+    on = run(s, _env(False), RunConfig(**base, workflow_config=_wc(soc=[], blue=["blue.block_egress"], ot=[], mgmt=[])))
+    off = run(s, _env(False), RunConfig(**base, workflow_config=_wc(soc=[], blue=[], ot=[], mgmt=[])))
+    assert on.summary["exfiltrated"] is False     # egress blocked first
+    assert off.summary["exfiltrated"] is True      # no egress control -> data leaves
+
+
+def test_segmentation_task_protects_ot():
+    s = _scn()
+    base = dict(difficulty=Difficulty.EXPERT, readiness=50)
+    seg = run(s, _env(False), RunConfig(**base, workflow_config=_wc(soc=[], blue=["blue.segmentation"], ot=[], mgmt=[])))
+    noseg = run(s, _env(False), RunConfig(**base, workflow_config=_wc(soc=[], blue=[], ot=[], mgmt=[])))
+    assert seg.summary["ot_impact"] is False       # IT/OT segmentation blocks the pivot
+    assert noseg.summary["ot_impact"] is True
+
+
+def test_red_evasion_slows_detection():
+    s = _scn()
+    base = dict(difficulty=Difficulty.HARD, readiness=60)
+    core = ["red.recon", "red.access", "red.privesc", "red.persist", "red.lateral", "red.exfil", "red.impact"]
+    evade = run(s, _env(True), RunConfig(**base))                                  # red defaults incl evasion
+    plain = run(s, _env(True), RunConfig(**base, workflow_config=_wc(red=core)))   # evasion stripped
+    assert evade.kpis["mttd_s"] > plain.kpis["mttd_s"]   # evasion increases dwell time
+
+
+def test_eradication_task_prevents_persistence_reestablish():
+    s = _scn()
+    base = dict(difficulty=Difficulty.EXPERT, readiness=60)
+    blue_no_erad = ["blue.identify", "blue.edr_contain", "blue.lessons"]
+    blue_erad = blue_no_erad + ["blue.eradicate", "blue.krbtgt"]
+    no_erad = run(s, _env(True), RunConfig(**base, workflow_config=_wc(blue=blue_no_erad)))
+    erad = run(s, _env(True), RunConfig(**base, workflow_config=_wc(blue=blue_erad)))
+    reestablished = lambda r: any("re-established" in e.message for e in r.events)  # noqa: E731
+    assert reestablished(no_erad) is True       # persistence survives containment
+    assert reestablished(erad) is False         # eradication defeats it
+
+
+def test_workflow_config_filters_tasks_and_is_deterministic():
+    s = _scn()
+    env = _env(True)
+    cfg = RunConfig(difficulty=Difficulty.HARD, readiness=55,
+                    workflow_config=_wc(blue=["blue.identify", "blue.edr_contain", "blue.lessons"]))
+    r1 = run(s, copy.deepcopy(env), cfg)
+    r2 = run(s, copy.deepcopy(env), cfg.model_copy(deep=True))
+    assert [e.model_dump() for e in r1.events] == [e.model_dump() for e in r2.events]
+    blue_wf = next(w for w in r1.workflows if w["actor"] == "blue")
+    assert {st["id"] for st in blue_wf["steps"]} == {"blue.identify", "blue.edr_contain", "blue.lessons"}
+    assert {t["id"] for t in r1.role_tasks["blue"]} == {"blue.identify", "blue.edr_contain", "blue.lessons"}

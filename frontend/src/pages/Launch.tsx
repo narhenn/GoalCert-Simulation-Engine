@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { AssetSpec, AssetType, ControlSpec, ControlType, RoleInfo, Topology } from "../api/types";
+import type { AssetSpec, AssetType, ControlSpec, ControlType, RoleInfo, Topology, WorkflowDef } from "../api/types";
 
 const DIFFS = ["Easy", "Medium", "Hard", "Expert"] as const;
 const ROLE_ICON: Record<string, string> = {
   red: "fa-crosshairs", soc: "fa-eye", blue: "fa-shield-alt", mgmt: "fa-briefcase", ot: "fa-industry",
 };
+const ROLE_ACCENT: Record<string, string> = {
+  red: "var(--gc-red)", soc: "var(--gc-green)", blue: "#5B8CFF", mgmt: "var(--gc-accent2)", ot: "var(--gc-orange)",
+};
+const WF_TEAMS = ["red", "soc", "blue", "mgmt", "ot"] as const;
 
 export default function Launch() {
   const { scenarioId } = useParams();
@@ -18,6 +22,7 @@ export default function Launch() {
   const { data: assetCatalog } = useQuery<AssetType[]>({ queryKey: ["assets"], queryFn: api.assets });
   const { data: controlCatalog } = useQuery<ControlType[]>({ queryKey: ["controls"], queryFn: api.controls });
   const { data: roles } = useQuery<RoleInfo[]>({ queryKey: ["roles"], queryFn: api.roles });
+  const { data: workflowDefs } = useQuery<WorkflowDef[]>({ queryKey: ["workflows"], queryFn: api.workflows });
 
   const [assets, setAssets] = useState<AssetSpec[]>([]);
   const [enabledAssets, setEnabledAssets] = useState<Set<string>>(new Set());
@@ -29,6 +34,8 @@ export default function Launch() {
   const [addType, setAddType] = useState("");
   const [focusRole, setFocusRole] = useState("blue");
   const [phaseSel, setPhaseSel] = useState("full");
+  const [enabledTasks, setEnabledTasks] = useState<Record<string, Set<string>>>({});
+  const [wfTeam, setWfTeam] = useState<string>("red");
   const [launching, setLaunching] = useState(false);
 
   useEffect(() => {
@@ -38,11 +45,20 @@ export default function Launch() {
       setEnabledControls(new Set(topology.controls.filter((c) => c.enabled).map((c) => c.type)));
     }
     if (scenario?.nominal_duration_min) setDuration(scenario.nominal_duration_min);
-    // default the lens to the scenario's framing
     if (scenario?.type && ["red", "soc", "blue", "mgmt", "ot"].includes(scenario.type)) {
       setFocusRole(scenario.type);
     }
   }, [topology, scenario]);
+
+  useEffect(() => {
+    if (workflowDefs) {
+      const init: Record<string, Set<string>> = {};
+      for (const wf of workflowDefs) {
+        init[wf.actor] = new Set(wf.steps.filter((s) => s.default_enabled).map((s) => s.id));
+      }
+      setEnabledTasks(init);
+    }
+  }, [workflowDefs]);
 
   const iconFor = useMemo(() => {
     const m: Record<string, string> = {};
@@ -54,6 +70,11 @@ export default function Launch() {
 
   const toggleAsset = (id: string) => setEnabledAssets((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleControl = (type: string) => setEnabledControls((s) => { const n = new Set(s); n.has(type) ? n.delete(type) : n.add(type); return n; });
+  const toggleTask = (team: string, id: string) => setEnabledTasks((s) => {
+    const next = new Set(s[team] ?? []);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return { ...s, [team]: next };
+  });
 
   const addAsset = () => {
     if (!addType) return;
@@ -81,10 +102,13 @@ export default function Launch() {
     const phaseIdx = phases.indexOf(phaseSel);
     const phase_range: [number, number] | null =
       phaseSel === "full" || phaseIdx < 0 ? null : [phaseIdx + 1, phaseIdx + 1];
+    const wfEnabled: Record<string, string[]> = {};
+    for (const team of WF_TEAMS) if (enabledTasks[team]) wfEnabled[team] = [...enabledTasks[team]];
     try {
       const run = await api.launch({
         scenario_id: scenarioId!, environment_spec: env,
-        config: { difficulty, readiness, duration_min: duration, focus_role: focusRole, phase_range },
+        config: { difficulty, readiness, duration_min: duration, focus_role: focusRole,
+                  phase_range, workflow_config: { enabled: wfEnabled } },
         operator: operator || undefined,
       });
       nav(`/sim/${run.id}`);
@@ -203,6 +227,79 @@ export default function Launch() {
             <input className="form-input" value={operator} placeholder="Your name" onChange={(e) => setOperator(e.target.value)} />
           </div>
         </div>
+      </div>
+
+      {/* TEAM WORKFLOW CUSTOMISATION (IRP-based) */}
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="card-header">
+          <div className="card-title"><i className="fa fa-list-check" /> Team workflows — customise each team's tasks</div>
+          <span className="muted" style={{ fontSize: 11 }}>IRP-CYBER-001 · toggle to add/remove · effects change the outcome</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {WF_TEAMS.map((t) => {
+            const wf = (workflowDefs ?? []).find((w) => w.actor === t);
+            const on = enabledTasks[t]?.size ?? 0;
+            const tot = wf?.steps.length ?? 0;
+            return (
+              <button key={t} className={"filter-chip" + (wfTeam === t ? " active" : "")}
+                style={wfTeam === t ? { borderColor: ROLE_ACCENT[t], color: ROLE_ACCENT[t] } : {}}
+                onClick={() => setWfTeam(t)}>
+                <i className={`fa ${ROLE_ICON[t]}`} /> {t.toUpperCase()} <span className="muted">{on}/{tot}</span>
+              </button>
+            );
+          })}
+        </div>
+        {(() => {
+          const wf = (workflowDefs ?? []).find((w) => w.actor === wfTeam);
+          if (!wf) return <div className="muted" style={{ fontSize: 12 }}>Loading…</div>;
+          const phases: string[] = [];
+          for (const s of wf.steps) if (s.phase_hint && !phases.includes(s.phase_hint)) phases.push(s.phase_hint);
+          if (!phases.includes("")) phases.push("");
+          return (
+            <div>
+              <div style={{ fontSize: 11, color: "var(--gc-muted)", marginBottom: 10 }}>{wf.description}</div>
+              {phases.map((ph) => {
+                const steps = wf.steps.filter((s) => (s.phase_hint || "") === ph);
+                if (steps.length === 0) return null;
+                return (
+                  <div key={ph || "_"} style={{ marginBottom: 12 }}>
+                    {ph && <div className="builder-label" style={{ marginBottom: 6 }}>{ph}</div>}
+                    {steps.map((s) => {
+                      const on = enabledTasks[wfTeam]?.has(s.id) ?? false;
+                      return (
+                        <div key={s.id}
+                          onClick={() => s.removable && toggleTask(wfTeam, s.id)}
+                          title={s.description}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+                                   borderRadius: 8, marginBottom: 6, cursor: s.removable ? "pointer" : "default",
+                                   border: "1px solid var(--gc-border)",
+                                   background: on ? "rgba(0,212,255,.05)" : "var(--gc-surface)", opacity: on ? 1 : 0.55 }}>
+                          <i className={`fa ${on ? "fa-check-square" : "fa-square"}`}
+                            style={{ color: on ? ROLE_ACCENT[wfTeam] : "var(--gc-muted)", fontSize: 14 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+                              {s.label}
+                              {!s.removable && <span className="tag" style={{ marginLeft: 8, fontSize: 9 }}>core</span>}
+                            </div>
+                            <div style={{ fontSize: 10.5, color: "var(--gc-muted)" }}>{s.description}</div>
+                          </div>
+                          <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+                            {s.effects.map((e, i) => (
+                              <span key={i} className="tag" style={{ fontSize: 9, background: "rgba(123,97,255,.12)", color: "var(--gc-purple)" }}>
+                                {e.kind}{e.scope && e.scope !== "all" ? `:${e.scope}` : ""}
+                              </span>
+                            ))}
+                            {s.irp_ref && <span style={{ fontSize: 9, color: "var(--gc-muted)", fontFamily: "var(--mono)" }}>{s.irp_ref}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>

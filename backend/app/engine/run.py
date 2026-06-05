@@ -2,11 +2,12 @@
 
 run(scenario, environment, config) -> RunResult
 
-Every team acts. Red's technique playbook emits telemetry; controls turn telemetry into
-alerts; the SOC triages/classifies/escalates; Blue contains (with decision gates) which
-mutates the world and can truncate Red; Management and OT react to severity/phase. Each team
-emits TASK status events so the operator can watch all teams side-by-side, and is scored
-separately. The operator's `focus_role` is purely a lens — it does not change the timeline.
+Every team acts. Red's technique playbook emits telemetry; controls turn telemetry into alerts;
+the SOC triages/classifies/escalates; Blue contains (with decision gates) which mutates the world
+and can truncate Red; Management and OT react to severity/phase. Each team's *enabled workflow
+tasks* (the operator's customization) are aggregated into a Posture that mechanically modulates
+detection, prevention, triage/containment speed, segmentation, persistence survival and recovery —
+so tuning the workflows changes who attacks/defends better. focus_role is a pure lens.
 
 Pure: no wall-clock, no RNG. Identical inputs always produce an identical timeline.
 """
@@ -16,20 +17,20 @@ import heapq
 
 from .catalog.spec import TechniqueSpec, get_technique
 from .config import RunConfig
-from .enums import CredScope, EventType, PLevel, SecurityState, Severity, Side
+from .enums import CredScope, EventType, Health, PLevel, SecurityState, Severity, Side
 from .environment import EnvironmentSpec, build_world
 from .events import SimEvent
 from .kpis import compute_kpis
+from .posture import Posture, build_posture
 from .resolve import resolver as R
 from .result import ObjectiveStatus, RunResult
 from .scenario import Scenario, TargetSelector
 from .workflows import get_workflow
 from .world import AssetInstance, World
 
-_KIND_PRIORITY = {"phase": 0, "attack": 1, "detection": 3,
+_KIND_PRIORITY = {"phase": 0, "attack": 1, "reestablish": 2, "detection": 3,
                   "soc_triage": 4, "mgmt": 5, "blue_contain": 6, "ot_ops": 7}
 
-# latency bases (seconds, pre difficulty/readiness scaling)
 SOC_TRIAGE_BASE = 150.0
 BLUE_CONTAIN_BASE = 300.0
 DC_APPROVAL_BASE = 180.0
@@ -43,6 +44,7 @@ RED_STAGE = {
     "Ransomware": "red.impact", "OT Attack": "red.impact",
 }
 PERSISTENCE_TECHNIQUES = {"persistence_task", "cloud_persistence"}
+IMPACT_TECHNIQUES = {"ransomware", "ot_plc_modify"}
 
 
 def _select_target(world: World, sel: TargetSelector | None) -> AssetInstance | None:
@@ -71,8 +73,10 @@ def _p_level(spec: TechniqueSpec, target: AssetInstance | None) -> PLevel:
     return PLevel.NONE
 
 
-def _soc_assigns(correct: PLevel, config: RunConfig) -> tuple[PLevel, bool]:
-    """Deterministic SOC classification — may under-classify under stress (escalation accuracy)."""
+def _soc_assigns(correct: PLevel, config: RunConfig, posture: Posture) -> tuple[PLevel, bool]:
+    """SOC classification — accurate if the severity-tree task is enabled, else may under-classify."""
+    if posture.escalation_quality:
+        return correct, True
     if correct != PLevel.P0 and config.difficulty.rank >= 4 and config.readiness < 40 \
             and correct.value >= 2:
         lowered = {PLevel.P1: PLevel.P2, PLevel.P2: PLevel.NONE}.get(correct, correct)
@@ -80,7 +84,6 @@ def _soc_assigns(correct: PLevel, config: RunConfig) -> tuple[PLevel, bool]:
     return correct, True
 
 
-# objective milestone keyword maps
 _RED_KW = {
     "foothold": ("access", "compromise", "foothold", "phish", "initial"),
     "privilege": ("privilege", "escalat", "credential", "admin"),
@@ -112,12 +115,20 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
     scale = config.duration_min / nominal
     seq = 0
 
+    # ---- bound workflows + per-team enabled tasks + posture ----------------
     bindings = scenario.workflow_bindings or {}
     workflows = {actor: get_workflow(wid) for actor, wid in bindings.items()}
+    enabled: dict[str, set[str]] = {}
+    for actor, wf in workflows.items():
+        es = config.workflow_config.enabled_set(actor)
+        enabled[actor] = es if es is not None else {s.id for s in wf.steps if s.default_enabled}
+    posture = build_posture(workflows, enabled)
+
     task_status: dict[tuple[str, str], str] = {}
     for wf in workflows.values():
         for st in wf.steps:
-            task_status[(wf.actor, st.id)] = "pending"
+            if st.id in enabled[wf.actor]:
+                task_status[(wf.actor, st.id)] = "pending"
 
     def emit(t: int, etype: EventType, **kw) -> None:
         nonlocal seq
@@ -128,6 +139,8 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
         return max(0, round(at_min * 60 * scale))
 
     def set_task(t, actor, step_id, status, msg="", phase=None):
+        if step_id not in enabled.get(actor, set()):
+            return  # task not part of the configured workflow
         if task_status.get((actor, step_id)) == status:
             return
         task_status[(actor, step_id)] = status
@@ -147,7 +160,7 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
         lo, hi = config.phase_range
         names = scenario.phases
         playbook = [s for s in playbook if s.phase in names and lo <= names.index(s.phase) + 1 <= hi]
-        if lo >= 2:  # prime attacker so a mid-chain drill is meaningful
+        if lo >= 2:
             eps = world.by_role("primary_endpoint") or world.by_type("endpoint")
             if eps:
                 eps[0].security_state = SecurityState.COMPROMISED
@@ -155,7 +168,6 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
             world.attacker.flags["c2"] = True
             world.attacker.raise_creds(CredScope.USER if lo < 4 else CredScope.PRIVILEGED)
 
-    # NB: focus_role is a lens only — it must NOT appear in the timeline (keeps it pure).
     emit(0, EventType.SYSTEM, actor="engine", title="Initialised",
          message=f"Scenario loaded: {scenario.name}")
     emit(0, EventType.SYSTEM, actor="white-cell", title="Briefing", message=scenario.description)
@@ -184,7 +196,8 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
     soc_max_p = PLevel.NONE
     escalated: set[str] = set()
     mgmt_done: set[str] = set()
-    evidence_ok = config.readiness >= 50
+    reestablished: set[str] = set()
+    evidence_ok = posture.evidence_first or config.readiness >= 50
     current_phase_idx = -1
 
     def score_event(t):
@@ -237,7 +250,7 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                      asset_id=target.id if target else None, asset_label=tname if target else None)
 
             attempts += 1
-            res = R.resolve(spec, world, target, config)
+            res = R.resolve(spec, world, target, config, posture)
 
             if res.status == "blocked":
                 blocked += 1
@@ -263,6 +276,10 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                 successes += 1
                 scores["red"] += spec.score.red_success
                 affected = R.apply_effects(spec, world, target)
+                # Blue recovery (tested backups) mitigates impact: down -> degraded
+                if posture.recovery and spec.key in IMPACT_TECHNIQUES and target is not None \
+                        and target.health.value == "down":
+                    target.health = Health.DEGRADED
                 if step.technique in PERSISTENCE_TECHNIQUES:
                     hunt_planted += 1
                 if red_stage:
@@ -282,7 +299,7 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                              title="State change",
                              message=f"{asset.name}: {asset.security_state.value} / {asset.health.value}",
                              data={"security_state": asset.security_state.value, "health": asset.health.value})
-                det = R.compute_detection(spec, world, target, config, t)
+                det = R.compute_detection(spec, world, target, config, t, posture)
                 if det is not None:
                     dt, ctype, cid = det
                     push(dt, "detection", {"kind": "detection", "spec_key": spec.key, "success_t": t,
@@ -292,6 +309,26 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                     push(t + config.latency(OT_OPS_BASE), "ot_ops",
                          {"kind": "ot_ops", "phase": phase, "target_id": target.id if target else None})
                 score_event(t)
+
+        elif kind == "reestablish":
+            target = world.get(p["target_id"])
+            if target is None or target.id in reestablished \
+                    or target.security_state != SecurityState.CONTAINED:
+                continue
+            reestablished.add(target.id)
+            target.security_state = SecurityState.COMPROMISED
+            world.attacker.add_foothold(target.id)
+            scores["red"] += 30
+            emit(t, EventType.ATTACK, side=Side.RED, actor="red-team", phase=p["phase"],
+                 severity=Severity.HIGH, technique="T1547",
+                 title="Persistence re-established",
+                 message=f"{target.name}: implant re-established after containment "
+                         f"(persistence survived; eradication incomplete)",
+                 asset_id=target.id, asset_label=target.name)
+            emit(t, EventType.STATE, actor="env", asset_id=target.id, asset_label=target.name,
+                 title="State change", message=f"{target.name}: compromised again",
+                 data={"security_state": target.security_state.value, "health": target.health.value})
+            score_event(t)
 
         elif kind == "detection":
             spec = get_technique(p["spec_key"])
@@ -309,7 +346,7 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
             scores["soc"] += spec.score.blue_detect
             target = world.get(p["target_id"]) if p["target_id"] else None
             tlabel = target.name if target else None
-            set_task(t, "soc", "soc.triage", "active", "Triaging incoming alert", p["phase"])
+            set_task(t, "soc", "soc.l1_triage", "active", "Triaging incoming alert", p["phase"])
             emit(t, EventType.DETECTION, side=Side.SOC, actor=ctype.upper(), phase=p["phase"],
                  severity=spec.severity, technique=spec.mitre, title=f"Alert: {spec.name}",
                  message=f"{ctrl.name} detected {spec.name}" + (f" on {tlabel}" if tlabel else "")
@@ -317,8 +354,8 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                  asset_id=p["target_id"], asset_label=tlabel, data={"control": ctype, "dwell_s": dwell})
             if spec.key in PERSISTENCE_TECHNIQUES:
                 hunt_found += 1
-                set_task(t, "soc", "soc.hunt", "done", "Persistence mechanism hunted & found", p["phase"])
-            push(t + config.latency(SOC_TRIAGE_BASE), "soc_triage",
+                set_task(t, "soc", "soc.threat_hunt", "done", "Persistence hunted & found", p["phase"])
+            push(t + config.latency(SOC_TRIAGE_BASE * posture.triage_factor), "soc_triage",
                  {"kind": "soc_triage", "spec_key": spec.key, "detect_t": t,
                   "target_id": p["target_id"], "phase": p["phase"]})
 
@@ -326,26 +363,27 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
             spec = get_technique(p["spec_key"])
             target = world.get(p["target_id"]) if p["target_id"] else None
             correct = _p_level(spec, target)
-            assigned, ok = _soc_assigns(correct, config)
+            assigned, ok = _soc_assigns(correct, config, posture)
             esc_total += 1
             esc_correct += 1 if ok else 0
             mtta.append(t - p["detect_t"])
             scores["soc"] += 30 if ok else 10
-            set_task(t, "soc", "soc.triage", "done", "Alert triaged (confirmed malicious)", p["phase"])
-            set_task(t, "soc", "soc.classify", "done",
+            set_task(t, "soc", "soc.l1_triage", "done", "Alert triaged (confirmed malicious)", p["phase"])
+            set_task(t, "soc", "soc.severity_tree", "done",
                      f"Classified {assigned.label}"
                      + ("" if ok else f" (under-classified; should be {correct.label})"), p["phase"])
-            set_task(t, "soc", "soc.investigate", "done", "L2 investigation: scope widened", p["phase"])
+            set_task(t, "soc", "soc.l2_investigation", "done", "L2 investigation: scope widened", p["phase"])
             emit(t, EventType.ESCALATION, side=Side.SOC, actor="soc", phase=p["phase"],
                  severity=spec.severity, technique=spec.mitre, title=f"SOC: {assigned.label}",
                  message=f"{spec.name} classified {assigned.label}" + (f" on {target.name}" if target else ""),
                  data={"p_level": assigned.value, "p_label": assigned.label, "correct": ok})
             schedule_mgmt(t, assigned, p["phase"])
             if assigned.value >= PLevel.P2.value and target is not None and spec.containable \
-                    and target.id not in escalated and target.security_state != SecurityState.CONTAINED:
+                    and posture.containment_enabled and target.id not in escalated \
+                    and target.security_state != SecurityState.CONTAINED:
                 escalated.add(target.id)
                 set_task(t, "soc", "soc.escalate", "done", f"Escalated {target.name} to IR", p["phase"])
-                push(t + config.latency(BLUE_CONTAIN_BASE), "blue_contain",
+                push(t + config.latency(BLUE_CONTAIN_BASE * posture.contain_factor), "blue_contain",
                      {"kind": "blue_contain", "spec_key": p["spec_key"], "alert_t": p["detect_t"],
                       "target_id": target.id, "phase": p["phase"]})
             score_event(t)
@@ -356,25 +394,27 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
             if target is None or target.security_state == SecurityState.CONTAINED:
                 continue
             is_dc = target.type_key == "domain_controller"
-            if is_dc and not p.get("approved"):
+            if is_dc and posture.decision_dc and not p.get("approved"):
                 emit(t, EventType.DECISION, side=Side.BLUE, actor="ir-team", phase=p["phase"],
                      severity=Severity.MEDIUM, title="Decision gate: isolate DC?",
                      message=f"Isolating {target.name} (DC) requires CISO approval — holding for sign-off",
                      asset_id=target.id, asset_label=target.name, data={"gate": "isolate_dc"})
                 scores["blue"] += 10
+                set_task(t, "blue", "blue.dc_gate", "done", "DC isolation gate followed", p["phase"])
                 p["approved"] = True
                 push(t + config.latency(DC_APPROVAL_BASE), "blue_contain", p)
                 continue
             set_task(t, "blue", "blue.identify", "done",
                      "Scoped incident; memory captured first" if evidence_ok
                      else "Scoped incident (no memory image)", p["phase"])
+            set_task(t, "blue", "blue.memory_first", "done", "Memory image acquired", p["phase"])
             target.security_state = SecurityState.CONTAINED
             if target.id in world.attacker.footholds:
                 world.attacker.footholds.remove(target.id)
             contained += 1
             mttc.append(t - p["alert_t"])
             scores["blue"] += spec.score.blue_contain + (15 if evidence_ok else 0) + (10 if is_dc else 0)
-            set_task(t, "blue", "blue.contain", "done", f"{target.name} isolated / contained", p["phase"])
+            set_task(t, "blue", "blue.edr_contain", "done", f"{target.name} isolated / contained", p["phase"])
             emit(t, EventType.RESPONSE, side=Side.BLUE, actor="ir-team", phase=p["phase"],
                  severity=Severity.MEDIUM, title=f"Contained: {target.name}",
                  message=f"{target.name} isolated; foothold revoked"
@@ -384,6 +424,11 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
             emit(t, EventType.STATE, actor="env", asset_id=target.id, asset_label=target.name,
                  title="State change", message=f"{target.name}: contained",
                  data={"security_state": target.security_state.value, "health": target.health.value})
+            # Red persistence survives unless Blue eradicates -> re-establish foothold
+            if posture.persistence_strong and not posture.eradicates \
+                    and target.id not in reestablished:
+                push(t + config.latency(BLUE_CONTAIN_BASE * 0.8), "reestablish",
+                     {"kind": "reestablish", "target_id": target.id, "phase": p["phase"]})
             score_event(t)
 
         elif kind == "mgmt":
@@ -422,16 +467,20 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
 
     # ---- finalise -----------------------------------------------------------
     a = world.attacker
-    backups_enabled = world.active_global_control("backups") is not None
+    backups_enabled = world.active_global_control("backups") is not None or posture.recovery
     final_assets = world.all_assets()
 
     if contained > 0:
-        set_task(duration_s, "blue", "blue.eradicate", "done", "Persistence removed; krbtgt rotated ×2")
-        set_task(duration_s, "blue", "blue.recover", "done" if backups_enabled else "blocked",
-                 "Restored from offline backups" if backups_enabled
-                 else "No tested backups — recovery impaired")
+        if posture.eradicates:
+            set_task(duration_s, "blue", "blue.eradicate", "done", "Persistence removed; krbtgt rotated ×2")
+            set_task(duration_s, "blue", "blue.krbtgt", "done", "krbtgt reset ×2; domain creds rotated")
+            set_task(duration_s, "blue", "blue.reimage", "done", "Hosts reimaged from clean baseline")
+        else:
+            set_task(duration_s, "blue", "blue.eradicate", "blocked", "Eradication incomplete — persistence remains")
+        set_task(duration_s, "blue", "blue.backups", "done" if posture.recovery else "blocked",
+                 "Restored from offline backups" if posture.recovery else "No tested backups — recovery impaired")
         set_task(duration_s, "blue", "blue.lessons", "done", "After-action report produced")
-        scores["blue"] += 40 if backups_enabled else 0
+        scores["blue"] += 40 if posture.recovery else 0
 
     milestones = {
         "foothold": a.has_foothold() or any(x.security_state == SecurityState.COMPROMISED for x in final_assets),
@@ -466,6 +515,12 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
         "attacker_max_creds": a.cred_scope.value, "exfiltrated": bool(a.flags.get("exfiltrated")),
         "ransomware": bool(a.flags.get("ransomware")), "ot_impact": bool(a.flags.get("ot_impact")),
         "backups_enabled": backups_enabled,
+        "posture": {
+            "prevent_egress": posture.prevent_egress, "segmentation": posture.segment,
+            "eradicates": posture.eradicates, "recovery": posture.recovery,
+            "evidence_first": posture.evidence_first, "hunt": posture.hunt,
+            "red_persistence": posture.persistence_strong, "red_c2_resilience": posture.c2_resilience >= 1,
+        },
     }
 
     emit(duration_s, EventType.SYSTEM, actor="engine", title="Complete",
@@ -473,15 +528,17 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                  f"Mgmt {scores['mgmt']} / OT {scores['ot']}")
 
     role_tasks: dict[str, list[dict]] = {}
+    result_workflows: list[dict] = []
     for actor, wf in workflows.items():
+        steps = [s for s in wf.steps if s.id in enabled[actor]]
         role_tasks[actor] = [{"id": st.id, "label": st.label, "description": st.description,
-                              "status": task_status.get((actor, st.id), "pending")} for st in wf.steps]
+                              "status": task_status.get((actor, st.id), "pending")} for st in steps]
+        result_workflows.append({"actor": wf.actor, "id": wf.id, "name": wf.name,
+                                 "description": wf.description, "steps": [s.model_dump() for s in steps]})
 
     return RunResult(
         scenario_id=scenario.id, duration_s=duration_s, focus_role=config.focus_role.value,
         events=events, scores=scores, kpis=kpis, summary=summary, objectives=objectives,
         environment=_asset_snapshot(build_world(env)), final_assets=_asset_snapshot(world),
-        workflows=[{"actor": wf.actor, "id": wf.id, "name": wf.name, "description": wf.description,
-                    "steps": [s.model_dump() for s in wf.steps]} for wf in workflows.values()],
-        role_tasks=role_tasks,
+        workflows=result_workflows, role_tasks=role_tasks,
     )
