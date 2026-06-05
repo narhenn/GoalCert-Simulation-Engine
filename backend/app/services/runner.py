@@ -35,6 +35,7 @@ def run_payload(run: Run, industry: str) -> dict:
         "summary": run.summary,
         "objectives": run.objectives,
         "events": run.events,
+        "environment": run.environment,
         "final_assets": run.final_assets,
     }
 

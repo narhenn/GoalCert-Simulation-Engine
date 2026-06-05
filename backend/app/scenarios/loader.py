@@ -5,9 +5,12 @@ from __future__ import annotations
 from app.engine.scenario import Scenario
 
 from .definitions import operation_black_phoenix as _obp
+from .definitions import operation_black_phoenix_red as _obp_red
+from .definitions import operation_black_phoenix_soc as _obp_soc
+from .definitions import operation_black_phoenix_blue as _obp_blue
 
 # Register seed scenario builders here. New seed scenario = add its builder.
-_BUILDERS = [_obp.build]
+_BUILDERS = [_obp.build, _obp_red.build, _obp_soc.build, _obp_blue.build]
 
 
 def load_seed_scenarios() -> list[Scenario]:

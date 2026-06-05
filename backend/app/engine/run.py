@@ -37,6 +37,7 @@ def _asset_snapshot(world: World) -> list[dict]:
         {
             "id": a.id, "type": a.type_key, "name": a.name, "role": a.role,
             "zone": a.zone, "criticality": a.criticality,
+            "data_sensitivity": a.data_sensitivity,
             "security_state": a.security_state.value, "health": a.health.value,
         }
         for a in world.all_assets()

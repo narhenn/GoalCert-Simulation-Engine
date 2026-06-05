@@ -52,8 +52,15 @@ export interface ReportContent {
   scenario_name: string; duration_min: number; exec_summary: string;
   timeline: any[]; mitre_map: any[]; scorecard: Record<string, any>;
   regulatory_impact: string[]; financial_impact: { estimate_low_usd: number; estimate_high_usd: number; drivers: string[] };
-  recommendations: string[]; maturity_score: { score: number; band: string };
+  recommendations: string[]; maturity_score: { score: number; band: string; breakdown?: Record<string, number> };
   corrective_actions: { priority: string; action: string }[];
+  key_findings?: { strengths: string[]; weaknesses: string[]; critical_moment: string };
+  attack_path?: { t: number; clock: string; technique: string; name: string; target_name: string; phase: string; severity: string; result: string; blocked_by?: string }[];
+  per_asset?: { id: string; name: string; type: string; zone: string; criticality: number; data_sensitivity: number; initial_state: string; final_state: string; final_health: string; times_targeted: number; times_blocked: number; times_detected: number; contained: boolean; avg_dwell_s: number; detected_by: string[]; risk_score: number }[];
+  control_effectiveness?: { type: string; name: string; detections: number; blocks: number; techniques_detected: string[]; techniques_blocked: string[]; avg_dwell_s: number; total_actions: number }[];
+  dwell_analysis?: { overall: { mean_s: number; median_s: number; min_s: number; max_s: number; count: number }; by_asset: { asset: string; mean_s: number; count: number }[]; by_phase: { phase: string; mean_s: number; count: number }[]; worst: { asset: string | null; max_dwell_s: number } };
+  zone_analysis?: { zone: string; assets_total: number; assets_compromised: number; assets_contained: number; assets_down: number; assets_safe: number; breach_pct: number; status: string; asset_names: string[] }[];
+  credential_timeline?: { t: number; clock: string; scope: string; rank: number; technique: string; description: string; target: string }[];
 }
 export interface Dashboard {
   total_runs: number; total_scenarios: number; avg_blue_score: number; critical_findings: number;
