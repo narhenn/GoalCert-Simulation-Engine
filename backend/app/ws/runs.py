@@ -39,6 +39,7 @@ def _load_session(run_id: str) -> tuple[RunSession, dict, str] | None:
         init = {
             "type": "init",
             "run_id": run.id,
+            "focus_role": run.focus_role,
             "scenario": {
                 "name": scenario.name, "phases": scenario.phases,
                 "objectives": scenario.objectives.model_dump(),
@@ -46,6 +47,9 @@ def _load_session(run_id: str) -> tuple[RunSession, dict, str] | None:
             },
             "duration_s": run.duration_s,
             "environment": run.environment,
+            "workflows": run.workflows,
+            "role_tasks": run.role_tasks,
+            "scores": run.scores,
             "speed": session.speed,
             "total_events": len(session.events),
         }
@@ -61,6 +65,7 @@ def _persist_inject(run_id: str, session: RunSession, industry: str) -> None:
         run.scores, run.kpis = session.scores, session.kpis
         run.summary, run.objectives = session.summary, session.objectives
         run.final_assets = session.final_assets
+        run.role_tasks = session.role_tasks
         report = db.query(Report).filter_by(run_id=run_id).first()
         if report is not None:
             report.content = generate_report(run_payload(run, industry))

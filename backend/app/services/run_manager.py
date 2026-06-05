@@ -33,6 +33,8 @@ class RunSession:
         self.objectives = dict(run.objectives)
         self.final_assets = list(run.final_assets)
         self.environment = list(run.environment)
+        self.role_tasks = dict(run.role_tasks)
+        self.workflows = list(run.workflows)
         self.injected: list[PlaybookStep] = []
 
         self.sim_t: float = 0.0
@@ -90,6 +92,7 @@ class RunSession:
         self.summary = result.summary
         self.objectives = result.model_dump(mode="json")["objectives"]
         self.final_assets = result.final_assets
+        self.role_tasks = result.role_tasks
         # everything at/under current sim-time is considered already streamed
         self.ptr = sum(1 for e in self.events if e["t"] <= self.sim_t)
 
@@ -97,6 +100,7 @@ class RunSession:
         return {
             "scores": self.scores, "kpis": self.kpis, "summary": self.summary,
             "objectives": self.objectives, "final_assets": self.final_assets,
+            "role_tasks": self.role_tasks,
         }
 
 

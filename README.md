@@ -30,6 +30,30 @@ exercise (phishing → domain-admin → exfiltration → ransomware → OT/PLC i
 Adding a new scenario = a new playbook reusing the catalog. Adding a new asset/control/technique
 = one model in the catalog. No engine changes.
 
+### Layer 6 — Roles & Workflows (v2, role-based simulation)
+
+On top of the five layers, **every team is a first-class actor with its own workflow**
+(`backend/app/engine/workflows.py`): Red kill-chain, SOC tiered triage/escalation, Blue NIST
+incident response, Management escalation/regulatory, and OT safety-ops. The engine drives them
+**reactively and deterministically**: Red telemetry → controls raise alerts → **SOC** triages,
+classifies a P-level and escalates → **Blue** contains (with decision gates like *isolate-DC needs
+CISO approval* and *memory-first*) which mutates the world and can truncate Red → **Management**
+notifies against regulatory deadlines → **OT** switches to manual ops.
+
+- **Role = lens.** Every team always acts; the operator picks a **focus role** to observe and be
+  scored on. Switching the lens (live or in the report) is free — *same timeline, different view*.
+- **Per-role scoring + KPIs:** MTTD / MTTA / MTTC, detection / containment / prevention rates,
+  escalation accuracy, threat-hunt success — scored separately for Red / SOC / Blue / Mgmt / OT.
+- **Live per-team sub-reports:** each team emits `TASK` status events, so the *Active Simulation*
+  page shows **side-by-side workboards** of every team's tasks (pending → active → done / blocked)
+  updating in real time, plus a lens switcher and per-role score strip.
+- **One mission, many drills:** run the full 8-phase Black Phoenix, or a **single-phase drill**
+  (`phase_range`) as a focused exercise. The three per-team Black Phoenix framings
+  (`…_red/_soc/_blue`) all reuse the same workflow catalog.
+- **Future-proof seam:** workflows resolve through a `Driver` interface — `ScriptedDriver` today,
+  a drop-in `AIDriver` (the workflow JSON becomes the agent's action space) later, with no engine
+  change. Same for `AIReportGenerator`.
+
 ---
 
 ## Run it — local dev (fastest, zero infra)

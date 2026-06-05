@@ -185,6 +185,54 @@ def _scorecard(run: dict) -> dict:
     }
 
 
+_ROLE_TITLES = {
+    "red": "Red Team", "soc": "SOC", "blue": "Blue Team (IR)",
+    "mgmt": "Management / IC", "ot": "OT / Operations",
+}
+
+
+def _role_scorecards(run: dict) -> list[dict]:
+    """Per-team scorecard: score, task completion, and the KPIs that matter to that role."""
+    sc, kp, s = run["scores"], run["kpis"], run["summary"]
+    role_tasks = run.get("role_tasks", {})
+    cards = []
+    for role in ("red", "soc", "blue", "mgmt", "ot"):
+        if role not in sc:
+            continue
+        tasks = role_tasks.get(role, [])
+        done = sum(1 for t in tasks if t.get("status") == "done")
+        if role == "red":
+            kpis = {"Actions succeeded": s.get("succeeded", 0), "Blocked": s.get("blocked", 0),
+                    "Max privilege": s.get("attacker_max_creds", "none"),
+                    "Assets compromised": s.get("assets_compromised", 0)}
+            headline = ("Reached OT impact" if s.get("ot_impact") else "Deployed ransomware"
+                        if s.get("ransomware") else "Exfiltrated data" if s.get("exfiltrated")
+                        else "Intrusion contained early")
+        elif role == "soc":
+            kpis = {"Detection rate": f"{kp.get('detection_rate', 0) * 100:.0f}%",
+                    "MTTD": f"{kp.get('mttd_s', 0) / 60:.1f}m", "MTTA": f"{kp.get('mtta_s', 0) / 60:.1f}m",
+                    "Escalation accuracy": f"{kp.get('escalation_accuracy', 0) * 100:.0f}%",
+                    "Hunt success": f"{kp.get('hunt_success', 0) * 100:.0f}%"}
+            headline = f"Peaked at {s.get('max_p_level', 'P3')} · {s.get('detected', 0)} alerts triaged"
+        elif role == "blue":
+            kpis = {"Containment rate": f"{kp.get('containment_rate', 0) * 100:.0f}%",
+                    "MTTC": f"{kp.get('mttc_s', 0) / 60:.1f}m", "Hosts contained": s.get("contained", 0),
+                    "Recovery": "backups" if s.get("backups_enabled") else "impaired"}
+            headline = f"{s.get('contained', 0)} host(s) contained · {s.get('blocked', 0)} prevented"
+        elif role == "mgmt":
+            kpis = {"Highest priority": s.get("max_p_level", "P3"),
+                    "Notifications": done, "BCP": "activated" if s.get("ransomware") else "n/a"}
+            headline = "Executive escalation & regulatory clocks managed"
+        else:  # ot
+            kpis = {"Safety preserved": "no" if s.get("ot_impact") else "yes",
+                    "OT impact": "yes" if s.get("ot_impact") else "no"}
+            headline = "Switched to manual ops" if done else "OT not engaged this run"
+        cards.append({"role": role, "title": _ROLE_TITLES[role], "score": sc.get(role, 0),
+                      "tasks_done": done, "tasks_total": len(tasks), "kpis": kpis,
+                      "headline": headline, "tasks": tasks})
+    return cards
+
+
 def _per_asset_report(run: dict) -> list[dict]:
     env = run.get("environment", [])
     final = run.get("final_assets", [])
@@ -486,18 +534,22 @@ def _financial_impact(run: dict) -> dict:
     drivers: list[str] = []
     if s.get("ransomware"):
         base = (300_000, 900_000) if backups else (1_500_000, 4_000_000)
-        low += base[0]; high += base[1]
+        low += base[0]
+        high += base[1]
         drivers.append("Ransomware recovery & downtime" + (" (mitigated by backups)" if backups else ""))
     if s.get("exfiltrated"):
-        low += 500_000; high += 2_000_000
+        low += 500_000
+        high += 2_000_000
         drivers.append("Data breach response, notification & legal")
     if s.get("ot_impact"):
-        low += 1_000_000; high += 5_000_000
+        low += 1_000_000
+        high += 5_000_000
         drivers.append("OT/physical process disruption & safety remediation")
     down_assets = [a for a in final_assets if a.get("health") == "down"]
     for a in down_assets:
         crit = a.get("criticality", 3)
-        low += 50_000 * crit; high += 150_000 * crit
+        low += 50_000 * crit
+        high += 150_000 * crit
     if down_assets:
         names = ", ".join(a.get("name", a["id"]) for a in down_assets[:4])
         drivers.append(f"{len(down_assets)} system(s) offline ({names}), cost scaled by criticality")
@@ -570,7 +622,9 @@ def generate_report(run: dict) -> dict:
     return {
         "scenario_name": run.get("scenario_name"),
         "duration_min": run["duration_s"] // 60,
+        "focus_role": run.get("focus_role", "blue"),
         "exec_summary": _exec_summary(run),
+        "role_scorecards": _role_scorecards(run),
         "key_findings": _key_findings(run),
         "attack_path": _attack_path(run),
         "per_asset": _per_asset_report(run),

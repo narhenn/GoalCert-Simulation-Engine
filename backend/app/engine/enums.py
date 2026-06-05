@@ -25,7 +25,24 @@ class Side(str, Enum):
     BLUE = "blue"
     SOC = "soc"
     MGMT = "mgmt"
+    OT = "ot"
     SYSTEM = "system"
+
+
+# The roles an operator can pick as the focus "lens" (every role still acts).
+FOCUS_ROLES = (Side.RED, Side.BLUE, Side.SOC, Side.MGMT, Side.OT)
+
+
+class PLevel(int, Enum):
+    """SOC incident priority. Higher = more severe (P0 is worst)."""
+    NONE = 0   # P3 / informational
+    P2 = 2     # confirmed malicious, single host
+    P1 = 3     # privileged host / multi-host
+    P0 = 4     # domain breach / ransomware / OT impact
+
+    @property
+    def label(self) -> str:
+        return {0: "P3", 2: "P2", 3: "P1", 4: "P0"}[self.value]
 
 
 class Difficulty(str, Enum):
@@ -69,6 +86,10 @@ class EventType(str, Enum):
     OBJECTIVE = "objective"  # objective progress
     STATE = "state"          # asset state/health change (drives the network map)
     SCORE = "score"          # score / kpi update
+    TASK = "task"            # a team workflow step changed status (drives per-role sub-reports)
+    ESCALATION = "escalation"  # SOC priority / escalation change
+    DECISION = "decision"    # a decision-gate outcome (e.g. isolate-DC requires approval)
+    NOTIFY = "notify"        # management notification / regulatory clock
 
 
 class AssetCategory(str, Enum):

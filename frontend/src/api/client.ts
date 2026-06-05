@@ -1,6 +1,6 @@
 import type {
   AssetType, ControlType, TechniqueType, ScenarioSummary, Topology,
-  RunConfig, RunSummary, SimEvent, ReportContent, Dashboard,
+  RunConfig, RunSummary, SimEvent, ReportContent, Dashboard, RoleInfo, WorkflowDef,
 } from "./types";
 
 async function get<T>(url: string): Promise<T> {
@@ -22,6 +22,8 @@ export const api = {
   assets: () => get<AssetType[]>("/api/catalog/assets"),
   controls: () => get<ControlType[]>("/api/catalog/controls"),
   techniques: () => get<TechniqueType[]>("/api/catalog/techniques"),
+  roles: () => get<RoleInfo[]>("/api/catalog/roles"),
+  workflows: () => get<WorkflowDef[]>("/api/catalog/workflows"),
 
   scenarios: () => get<ScenarioSummary[]>("/api/scenarios"),
   scenario: (id: string) => get<any>(`/api/scenarios/${id}`),

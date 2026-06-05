@@ -462,6 +462,13 @@
       "label": "Unauthorized PLC setpoint change \u2014 chemical dosing values drifting"
     }
   ],
+  "workflow_bindings": {
+    "red": "apt_ransomware_killchain",
+    "soc": "tiered_triage_escalation",
+    "blue": "nist_ir_response",
+    "mgmt": "exec_escalation_regulatory",
+    "ot": "ot_safety_ops"
+  },
   "objectives": {
     "red": [
       "Gain initial access via phishing",

@@ -34,6 +34,13 @@ class Objectives(BaseModel):
     blue: list[str] = Field(default_factory=list)
 
 
+# Default per-actor workflow bindings (a scenario references workflows, never embeds them).
+_DEFAULT_BINDINGS = {
+    "red": "apt_ransomware_killchain", "soc": "tiered_triage_escalation",
+    "blue": "nist_ir_response", "mgmt": "exec_escalation_regulatory", "ot": "ot_safety_ops",
+}
+
+
 class Scenario(BaseModel):
     schema_version: int = 1
     id: str
@@ -49,6 +56,8 @@ class Scenario(BaseModel):
     phases: list[str] = Field(default_factory=list)
     recommended_topology: EnvironmentSpec
     playbook: list[PlaybookStep] = Field(default_factory=list)
+    # v2: teams are referenced (Layer 6), not embedded.
+    workflow_bindings: dict[str, str] = Field(default_factory=lambda: dict(_DEFAULT_BINDINGS))
     objectives: Objectives = Field(default_factory=Objectives)
     report_sections: list[str] = Field(default_factory=lambda: [
         "exec_summary", "timeline", "mitre_map", "scorecard",

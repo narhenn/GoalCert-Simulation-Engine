@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from .enums import Difficulty
+from .enums import Difficulty, Side
 
 
 class RunConfig(BaseModel):
@@ -19,6 +19,15 @@ class RunConfig(BaseModel):
     # Total simulated duration in minutes (used for pacing/phase spacing, not outcomes).
     duration_min: int = Field(default=120, ge=5, le=480)
     industry: str = "generic"
+
+    # ---- v2: role lens & drivers --------------------------------------------
+    # The team the operator observes/scores by default (every team still acts).
+    focus_role: Side = Side.BLUE
+    # Which roles are scripted vs (future) AI-driven. POC: all "scripted".
+    role_drivers: dict[str, str] = Field(default_factory=dict)
+    # Optional [start_phase, end_phase] (1-based inclusive) to run a single-phase drill.
+    phase_range: tuple[int, int] | None = None
+
     # Reserved for a future seeded-stochastic resolver. Unused in the deterministic core.
     seed: int = 0
 
@@ -32,7 +41,21 @@ class RunConfig(BaseModel):
         """Readiness normalised to 0..1."""
         return self.readiness / 100.0
 
+    # ---- readiness -> concrete model knobs (roadmap Part 9.2) ----------------
+    @property
+    def user_susceptibility(self) -> float:
+        """Phishing-click likelihood 0..1; high readiness lowers it."""
+        return round(0.85 - 0.6 * self.readiness_norm, 3)
+
+    @property
+    def control_efficacy(self) -> float:
+        """Multiplier 0..1 on control detect/prevent reliability."""
+        return round(0.55 + 0.45 * self.readiness_norm, 3)
+
     def latency(self, base_seconds: float) -> int:
         """Apply difficulty + readiness to a base latency, in whole sim-seconds (>=1)."""
         scaled = base_seconds * self.difficulty.factor * self.readiness_factor
         return max(1, round(scaled))
+
+    def driver_for(self, role: str) -> str:
+        return self.role_drivers.get(role, "scripted")

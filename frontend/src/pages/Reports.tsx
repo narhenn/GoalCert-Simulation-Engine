@@ -2,6 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { ReportContent, RunSummary } from "../api/types";
+import { ROLE_ACCENT, ROLE_ICON } from "../components/TeamBoard";
+
+const STATUS_ICON: Record<string, [string, string]> = {
+  done: ["fa-check-circle", "var(--gc-green)"], active: ["fa-circle-notch", "var(--gc-accent)"],
+  blocked: ["fa-ban", "var(--gc-red)"], skipped: ["fa-minus-circle", "var(--gc-muted)"],
+  pending: ["fa-circle", "var(--gc-muted)"],
+};
 
 function riskColor(score: number) { return score >= 70 ? "var(--gc-red)" : score >= 40 ? "var(--gc-yellow)" : "var(--gc-green)"; }
 function stateColor(s: string) { return s === "compromised" ? "var(--gc-red)" : s === "contained" ? "var(--gc-teal)" : s === "suspicious" ? "var(--gc-yellow)" : "var(--gc-green)"; }
@@ -50,6 +57,46 @@ export default function Reports() {
         <div className="card-title" style={{ marginBottom: 10 }}><i className="fa fa-file-lines" /> Executive Summary</div>
         <p style={{ fontSize: 14, lineHeight: 1.8 }}>{report.exec_summary}</p>
       </div>
+
+      {(report.role_scorecards ?? []).length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div className="card-title" style={{ marginBottom: 12 }}>
+            <i className="fa fa-users" /> Per-Team Scorecards
+            {report.focus_role && <span className="tag" style={{ marginLeft: 8 }}>focus: {report.focus_role}</span>}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(report.role_scorecards!.length, 5)},1fr)`, gap: 12 }}>
+            {report.role_scorecards!.map((rc) => {
+              const accent = ROLE_ACCENT[rc.role] ?? "var(--gc-accent)";
+              const focused = report.focus_role === rc.role;
+              return (
+                <div key={rc.role} className="card" style={{ padding: 14, borderColor: focused ? accent : "var(--gc-border)", boxShadow: focused ? `0 0 0 1px ${accent}` : "none" }}>
+                  <div className="card-header" style={{ marginBottom: 8 }}>
+                    <div className="card-title" style={{ fontSize: 12 }}><i className={`fa ${ROLE_ICON[rc.role] || "fa-user"}`} style={{ color: accent }} /> {rc.title}</div>
+                    <span style={{ fontFamily: "var(--mono)", fontWeight: 700, color: accent }}>{rc.score}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--gc-muted)", marginBottom: 8 }}>{rc.headline} · {rc.tasks_done}/{rc.tasks_total} tasks</div>
+                  {Object.entries(rc.kpis).map(([k, v]) => (
+                    <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
+                      <span className="muted">{k}</span><span style={{ fontFamily: "var(--mono)" }}>{v}</span>
+                    </div>
+                  ))}
+                  <div style={{ borderTop: "1px solid var(--gc-border)", marginTop: 8, paddingTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                    {rc.tasks.map((t) => {
+                      const [icon, color] = STATUS_ICON[t.status] ?? STATUS_ICON.pending;
+                      return (
+                        <div key={t.id} style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 11 }} title={t.description}>
+                          <i className={`fa ${icon}`} style={{ color, marginTop: 2, fontSize: 10, width: 11 }} />
+                          <span style={{ color: t.status === "done" ? "var(--gc-text)" : "var(--gc-muted)", textDecoration: t.status === "blocked" ? "line-through" : "none" }}>{t.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="stats-row">
         <Stat cls={sc.winner === "Blue" ? "green" : "red"} label="Outcome" value={`${sc.winner} advantage`} sub={`Red ${sc.red_score} / Blue ${sc.blue_score}`} />
@@ -129,7 +176,7 @@ export default function Reports() {
           </div>
         </div>
         <div className="card">
-          <div className="card-title" style={{ marginBottom: 12 }}><i className="fa fa-sitemap" /> MITRE ATT&CK Mapping</div>
+          <div className="card-title" style={{ marginBottom: 12 }}><i className="fa fa-sitemap" /> MITRE ATTACK Mapping</div>
           <table className="score-table"><thead><tr><th>Technique</th><th>Tactic</th><th>Detected</th><th>Blocked</th></tr></thead>
             <tbody>{report.mitre_map.map((m, i) => (
               <tr key={i}>

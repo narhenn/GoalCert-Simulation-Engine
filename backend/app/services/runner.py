@@ -30,10 +30,12 @@ def run_payload(run: Run, industry: str) -> dict:
         "scenario_name": run.scenario_name,
         "industry": industry,
         "duration_s": run.duration_s,
+        "focus_role": run.focus_role,
         "scores": run.scores,
         "kpis": run.kpis,
         "summary": run.summary,
         "objectives": run.objectives,
+        "role_tasks": run.role_tasks,
         "events": run.events,
         "environment": run.environment,
         "final_assets": run.final_assets,
@@ -62,10 +64,11 @@ def create_run(
 
     run = Run(
         scenario_id=scenario_id, scenario_name=scenario.name, operator=operator,
-        status="completed", config=cfg.model_dump(mode="json"),
+        status="completed", focus_role=result.focus_role, config=cfg.model_dump(mode="json"),
         environment_spec=env.model_dump(mode="json"), duration_s=result.duration_s,
         scores=result.scores, kpis=result.kpis, summary=result.summary,
         objectives=result.model_dump(mode="json")["objectives"],
+        workflows=result.workflows, role_tasks=result.role_tasks,
         environment=result.environment, final_assets=result.final_assets,
         events=[e.model_dump(mode="json") for e in result.events],
     )

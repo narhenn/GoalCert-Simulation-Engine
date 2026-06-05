@@ -72,6 +72,31 @@ def test_dashboard_and_leaderboard(client):
     assert isinstance(lb, list) and len(lb) >= 1
 
 
+def test_roles_and_workflows_catalog(client):
+    roles = client.get("/api/catalog/roles").json()
+    assert {r["role"] for r in roles} == {"red", "soc", "blue", "mgmt", "ot"}
+    workflows = client.get("/api/catalog/workflows").json()
+    assert len(workflows) == 5
+    assert all(len(w["steps"]) >= 4 for w in workflows)
+
+
+def test_launch_focus_role_and_per_role_report(client):
+    run = client.post("/api/runs", json={
+        "scenario_id": "operation_black_phoenix",
+        "config": {"difficulty": "Expert", "readiness": 60, "duration_min": 90, "focus_role": "soc"},
+        "operator": "Lens",
+    }).json()
+    assert run["focus_role"] == "soc"
+    assert set(run["scores"]) == {"red", "blue", "soc", "mgmt", "ot"}
+    detail = client.get(f"/api/runs/{run['id']}").json()
+    assert len(detail["workflows"]) == 5
+    assert "soc" in detail["role_tasks"]
+    report = client.get(f"/api/runs/{run['id']}/report").json()
+    cards = {c["role"]: c for c in report["role_scorecards"]}
+    assert set(cards) == {"red", "blue", "soc", "mgmt", "ot"}
+    assert cards["soc"]["tasks_total"] >= 4
+
+
 def test_websocket_stream_lifecycle(client):
     run = client.post("/api/runs", json={
         "scenario_id": "operation_black_phoenix",

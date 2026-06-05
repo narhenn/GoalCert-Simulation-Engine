@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { AssetSpec, AssetType, ControlSpec, ControlType, Topology } from "../api/types";
+import type { AssetSpec, AssetType, ControlSpec, ControlType, RoleInfo, Topology } from "../api/types";
 
 const DIFFS = ["Easy", "Medium", "Hard", "Expert"] as const;
+const ROLE_ICON: Record<string, string> = {
+  red: "fa-crosshairs", soc: "fa-eye", blue: "fa-shield-alt", mgmt: "fa-briefcase", ot: "fa-industry",
+};
 
 export default function Launch() {
   const { scenarioId } = useParams();
@@ -14,6 +17,7 @@ export default function Launch() {
   const { data: topology } = useQuery<Topology>({ queryKey: ["topology", scenarioId], queryFn: () => api.topology(scenarioId!) });
   const { data: assetCatalog } = useQuery<AssetType[]>({ queryKey: ["assets"], queryFn: api.assets });
   const { data: controlCatalog } = useQuery<ControlType[]>({ queryKey: ["controls"], queryFn: api.controls });
+  const { data: roles } = useQuery<RoleInfo[]>({ queryKey: ["roles"], queryFn: api.roles });
 
   const [assets, setAssets] = useState<AssetSpec[]>([]);
   const [enabledAssets, setEnabledAssets] = useState<Set<string>>(new Set());
@@ -23,6 +27,8 @@ export default function Launch() {
   const [duration, setDuration] = useState(120);
   const [operator, setOperator] = useState("");
   const [addType, setAddType] = useState("");
+  const [focusRole, setFocusRole] = useState("blue");
+  const [phaseSel, setPhaseSel] = useState("full");
   const [launching, setLaunching] = useState(false);
 
   useEffect(() => {
@@ -32,6 +38,10 @@ export default function Launch() {
       setEnabledControls(new Set(topology.controls.filter((c) => c.enabled).map((c) => c.type)));
     }
     if (scenario?.nominal_duration_min) setDuration(scenario.nominal_duration_min);
+    // default the lens to the scenario's framing
+    if (scenario?.type && ["red", "soc", "blue", "mgmt", "ot"].includes(scenario.type)) {
+      setFocusRole(scenario.type);
+    }
   }, [topology, scenario]);
 
   const iconFor = useMemo(() => {
@@ -67,10 +77,14 @@ export default function Launch() {
           : { id: `c-${c.key}`, type: c.key, enabled: enabledControls.has(c.key) };
       }),
     };
+    const phases: string[] = scenario.phases ?? [];
+    const phaseIdx = phases.indexOf(phaseSel);
+    const phase_range: [number, number] | null =
+      phaseSel === "full" || phaseIdx < 0 ? null : [phaseIdx + 1, phaseIdx + 1];
     try {
       const run = await api.launch({
         scenario_id: scenarioId!, environment_spec: env,
-        config: { difficulty, readiness, duration_min: duration },
+        config: { difficulty, readiness, duration_min: duration, focus_role: focusRole, phase_range },
         operator: operator || undefined,
       });
       nav(`/sim/${run.id}`);
@@ -87,6 +101,39 @@ export default function Launch() {
       <div className="section-header">
         <h1>Configure & Launch — {scenario.name}</h1>
         <p>{scenario.description}</p>
+      </div>
+
+      {/* FOCUS ROLE (lens) + PHASE SCOPE */}
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-header">
+          <div className="card-title"><i className="fa fa-users" /> Focus role (lens) — every team acts; you observe one</div>
+          <span className="muted" style={{ fontSize: 11 }}>switchable live & in the report</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
+          {(roles ?? []).map((r) => {
+            const on = focusRole === r.role;
+            return (
+              <div key={r.role} className={"asset-tile" + (on ? " on" : "")} style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}
+                onClick={() => setFocusRole(r.role)} title={r.description}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="icon"><i className={`fa ${ROLE_ICON[r.role] || "fa-user"}`} /></div>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: "capitalize" }}>{r.role}</span>
+                </div>
+                <div style={{ fontSize: 10, color: "var(--gc-muted)", lineHeight: 1.35 }}>{r.mission}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", gap: 14, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="builder-label" style={{ margin: 0 }}>Scope</div>
+          <select className="form-select" value={phaseSel} onChange={(e) => setPhaseSel(e.target.value)} style={{ maxWidth: 320 }}>
+            <option value="full">Full mission ({(scenario.phases ?? []).length} phases)</option>
+            {(scenario.phases ?? []).map((p: string, i: number) => (
+              <option key={p} value={p}>Drill — Phase {i + 1}: {p}</option>
+            ))}
+          </select>
+          <span className="muted" style={{ fontSize: 11 }}>Run the whole kill-chain or a single-phase focused drill.</span>
+        </div>
       </div>
 
       <div className="grid-2">

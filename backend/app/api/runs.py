@@ -26,8 +26,8 @@ def _run_summary(run: Run) -> dict:
     return {
         "id": run.id, "scenario_id": run.scenario_id, "scenario_name": run.scenario_name,
         "operator": run.operator, "status": run.status, "duration_s": run.duration_s,
-        "scores": run.scores, "kpis": run.kpis, "summary": run.summary,
-        "created_at": run.created_at.isoformat(),
+        "focus_role": run.focus_role, "scores": run.scores, "kpis": run.kpis,
+        "summary": run.summary, "created_at": run.created_at.isoformat(),
     }
 
 
@@ -45,6 +45,8 @@ def launch_run(req: LaunchRequest, db: Session = Depends(get_session)) -> dict:
     detail = _run_summary(run)
     detail["environment"] = run.environment
     detail["objectives"] = run.objectives
+    detail["workflows"] = run.workflows
+    detail["role_tasks"] = run.role_tasks
     return detail
 
 
@@ -63,6 +65,8 @@ def get_run(run_id: str, db: Session = Depends(get_session)) -> dict:
     detail["environment"] = run.environment
     detail["final_assets"] = run.final_assets
     detail["objectives"] = run.objectives
+    detail["workflows"] = run.workflows
+    detail["role_tasks"] = run.role_tasks
     detail["config"] = run.config
     return detail
 

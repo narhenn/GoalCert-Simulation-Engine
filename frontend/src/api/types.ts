@@ -27,15 +27,24 @@ export interface ControlSpec {
 }
 export interface Topology { assets: AssetSpec[]; controls: ControlSpec[]; }
 
+export interface RoleInfo { role: string; name: string; mission: string; description: string; }
+export interface WorkflowDef {
+  actor: string; id: string; name: string; description: string;
+  steps: { id: string; kind: string; label: string; description: string; phase_hint: string; scored: boolean }[];
+}
+export interface RoleTask { id: string; label: string; description?: string; status: string; }
+
 export interface RunConfig {
   difficulty: "Easy" | "Medium" | "Hard" | "Expert";
   readiness: number; duration_min: number; industry?: string; seed?: number;
+  focus_role?: string; phase_range?: [number, number] | null;
 }
 export interface RunSummary {
   id: string; scenario_id: string; scenario_name: string; operator?: string | null;
-  status: string; duration_s: number; scores: { red: number; blue: number };
+  status: string; duration_s: number; focus_role?: string; scores: Record<string, number>;
   kpis: Record<string, number>; summary: Record<string, any>; created_at: string;
   environment?: AssetNode[]; objectives?: { red: ObjStatus[]; blue: ObjStatus[] };
+  workflows?: WorkflowDef[]; role_tasks?: Record<string, RoleTask[]>;
 }
 export interface ObjStatus { text: string; met: boolean; }
 export interface AssetNode {
@@ -48,8 +57,13 @@ export interface SimEvent {
   technique?: string | null; asset_id?: string | null; asset_label?: string | null;
   channel?: string | null; data: Record<string, any>;
 }
+export interface RoleScorecard {
+  role: string; title: string; score: number; tasks_done: number; tasks_total: number;
+  kpis: Record<string, string | number>; headline: string; tasks: RoleTask[];
+}
 export interface ReportContent {
-  scenario_name: string; duration_min: number; exec_summary: string;
+  scenario_name: string; duration_min: number; focus_role?: string; exec_summary: string;
+  role_scorecards?: RoleScorecard[];
   timeline: any[]; mitre_map: any[]; scorecard: Record<string, any>;
   regulatory_impact: string[]; financial_impact: { estimate_low_usd: number; estimate_high_usd: number; drivers: string[] };
   recommendations: string[]; maturity_score: { score: number; band: string; breakdown?: Record<string, number> };
