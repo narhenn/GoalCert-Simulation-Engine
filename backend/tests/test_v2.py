@@ -127,6 +127,91 @@ def test_eradication_task_prevents_persistence_reestablish():
     assert reestablished(erad) is False         # eradication defeats it
 
 
+def test_fallback_technique_activates_when_blocked():
+    """When a step's primary technique is blocked and it has a fallback, the engine tries the fallback."""
+    s = _scn()
+    s_copy = s.model_copy(deep=True)
+    for step in s_copy.playbook:
+        if step.technique == "exfiltration":
+            # Exfiltration is blocked by DLP at Easy/Medium; use recon_osint as fallback
+            # (it has no preconditions beyond "start" which is always true)
+            step.fallback_technique = "recon_osint"
+            break
+    env = _env(True)
+    r = run(s_copy, env, RunConfig(difficulty=Difficulty.EASY, readiness=80))
+    block_events = [e for e in r.events if e.type == EventType.BLOCK and e.technique == "T1567.002"]
+    fallback_events = [e for e in r.events if e.type == EventType.ATTACK and e.data.get("fallback_of") == "exfiltration"]
+    assert len(block_events) >= 1, "Exfiltration should be blocked at Easy difficulty with DLP"
+    assert len(fallback_events) >= 1, "Fallback technique should have been attempted after block"
+
+
+def test_decision_gates_fire_and_score():
+    """All configured decision gates should produce DECISION events and affect scoring."""
+    s = _scn()
+    # Full controls + strong Blue posture so containment fires + gates evaluated
+    blue_full = ["blue.identify", "blue.memory_first", "blue.block_egress", "blue.edr_contain",
+                 "blue.disable_accounts", "blue.segmentation", "blue.dc_gate", "blue.eradicate",
+                 "blue.krbtgt", "blue.backups", "blue.lessons"]
+    r = run(s, _env(True), RunConfig(difficulty=Difficulty.EXPERT, readiness=60,
+                                      workflow_config=_wc(blue=blue_full)))
+    decision_events = [e for e in r.events if e.type == EventType.DECISION]
+    gate_ids = {e.data.get("gate") for e in decision_events}
+    # At minimum the DC gate should fire (DC is always in the topology and gets compromised at Expert)
+    assert "gate_dc_no_isolate" in gate_ids, f"DC gate should fire; got gates: {gate_ids}"
+    # All decision events should have gate data
+    for e in decision_events:
+        assert "gate" in e.data, f"Decision event missing gate data: {e.title}"
+    # Blue score should be positive (gates give score_correct bonuses)
+    assert r.scores["blue"] > 0
+
+
+def test_regulatory_frameworks_produce_framework_specific_notifications():
+    """Scenario with regulatory frameworks + controls on should produce framework-specific notifications."""
+    s = _scn()
+    s_copy = s.model_copy(deep=True)
+    s_copy.regulatory_frameworks = ["ndb", "apra_cps234", "critical_infra"]
+    # Controls ON so SOC detects -> escalates -> P0 -> mgmt -> regulatory
+    # Expert difficulty so the attack succeeds (ransomware deploys) to trigger frameworks
+    r = run(s_copy, _env(True), RunConfig(difficulty=Difficulty.EXPERT, readiness=60))
+    notify_events = [e for e in r.events if e.type == EventType.NOTIFY]
+    framework_ids = {e.data.get("framework_id") for e in notify_events if e.data.get("framework_id")}
+    # At least one framework should be triggered (critical_infra fires on ransomware)
+    assert len(framework_ids) >= 1, \
+        f"Expected framework-specific notifications; got: {framework_ids}"
+    # Each framework notification should have deadline data
+    for e in notify_events:
+        if e.data.get("framework_id"):
+            assert "deadline_hours" in e.data
+            assert "penalty" in e.data
+
+
+def test_persistence_planted_tracked_in_summary():
+    """Successful persistence techniques should be tracked with type and asset info."""
+    s = _scn()
+    # Expert + controls off + no eradication tasks = persistence survives
+    blue_no_erad = ["blue.identify", "blue.edr_contain", "blue.lessons"]
+    r = run(s, _env(False), RunConfig(difficulty=Difficulty.EXPERT, readiness=50,
+                                       workflow_config=_wc(blue=blue_no_erad)))
+    planted = r.summary.get("persistence_planted", [])
+    assert len(planted) >= 1, f"Expected persistence to be planted; got: {planted}"
+    for p in planted:
+        assert "type" in p
+        assert "technique" in p
+        assert "t" in p
+    # Without eradication tasks, persistence should survive
+    assert r.summary.get("persistence_eradicated") is False
+
+
+def test_persistence_eradicated_when_blue_tasks_on():
+    """With eradication workflow tasks enabled, persistence should be marked eradicated."""
+    s = _scn()
+    blue_erad = ["blue.identify", "blue.edr_contain", "blue.eradicate", "blue.krbtgt", "blue.lessons"]
+    r = run(s, _env(True), RunConfig(difficulty=Difficulty.EXPERT, readiness=60,
+                                      workflow_config=_wc(blue=blue_erad)))
+    if r.summary.get("contained", 0) > 0:
+        assert r.summary.get("persistence_eradicated") is True
+
+
 def test_workflow_config_filters_tasks_and_is_deterministic():
     s = _scn()
     env = _env(True)

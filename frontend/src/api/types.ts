@@ -71,7 +71,8 @@ export interface ReportContent {
   scenario_name: string; duration_min: number; focus_role?: string; exec_summary: string;
   role_scorecards?: RoleScorecard[];
   timeline: any[]; mitre_map: any[]; scorecard: Record<string, any>;
-  regulatory_impact: string[]; financial_impact: { estimate_low_usd: number; estimate_high_usd: number; drivers: string[] };
+  regulatory_impact: { framework_name: string; message: string; deadline_hours: number; penalty?: string; on_time?: boolean; framework_id?: string }[];
+  financial_impact: { estimate_low_usd: number; estimate_high_usd: number; drivers: string[] };
   recommendations: string[]; maturity_score: { score: number; band: string; breakdown?: Record<string, number> };
   corrective_actions: { priority: string; action: string }[];
   key_findings?: { strengths: string[]; weaknesses: string[]; critical_moment: string };

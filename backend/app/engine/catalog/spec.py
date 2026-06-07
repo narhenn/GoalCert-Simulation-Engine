@@ -88,6 +88,9 @@ def catalog() -> list[dict]:
             "key": t.key, "name": t.name, "mitre": t.mitre, "tactic": t.tactic,
             "description": t.description, "severity": t.severity.value,
             "detects": sorted(t.detection.keys()), "prevents": sorted(t.prevention.keys()),
+            "containable": t.containable,
+            "preconditions": [{"kind": p.kind, "value": p.value} for p in t.preconditions],
+            "effects": [{"kind": e.kind, "value": e.value} for e in t.effects],
         }
         for t in all_techniques()
     ]

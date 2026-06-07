@@ -45,6 +45,12 @@ export default function Library() {
               <div className="meta-item"><i className="fa fa-bolt" /> {s.step_count} steps</div>
               <div className="meta-item"><i className="fa fa-industry" /> {s.industry}</div>
             </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <button className="btn btn-ghost" style={{ fontSize: 10, padding: "4px 10px" }}
+                onClick={(e) => { e.stopPropagation(); nav(`/builder?clone=${s.id}`); }}>
+                <i className="fa fa-copy" /> Clone
+              </button>
+            </div>
           </div>
         ))}
       </div>
