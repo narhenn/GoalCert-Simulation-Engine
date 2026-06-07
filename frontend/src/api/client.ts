@@ -1,6 +1,7 @@
 import type {
   AssetType, ControlType, TechniqueType, ScenarioSummary, Topology,
   RunConfig, RunSummary, SimEvent, ReportContent, Dashboard, RoleInfo, WorkflowDef,
+  LiveSessionSummary, LiveMission,
 } from "./types";
 
 async function get<T>(url: string): Promise<T> {
@@ -38,4 +39,13 @@ export const api = {
 
   dashboard: () => get<Dashboard>("/api/dashboard"),
   leaderboard: () => get<any[]>("/api/leaderboard"),
+
+  // ---- Live multiplayer ----
+  liveSessions: () => get<LiveSessionSummary[]>("/api/live/sessions"),
+  liveMissions: () => get<LiveMission[]>("/api/live/missions"),
+  liveSession: (id: string) => get<LiveSessionSummary & { players: any[] }>(`/api/live/sessions/${id}`),
+  createLiveSession: (body: { host_name: string; mission_id?: string; scenario_id?: string }) =>
+    post<{ session_id: string; player_id: string; scenario_name: string; status: string }>("/api/live/sessions", body),
+  joinLiveSession: (id: string, body: { name: string }) =>
+    post<{ session_id: string; player_id: string; scenario_name: string; status: string }>(`/api/live/sessions/${id}/join`, body),
 };

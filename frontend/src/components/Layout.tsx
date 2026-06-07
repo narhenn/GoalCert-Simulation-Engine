@@ -4,6 +4,7 @@ import { NavLink, useLocation } from "react-router-dom";
 const NAV = [
   { to: "/", icon: "fa-th-large", label: "Dashboard" },
   { to: "/library", icon: "fa-database", label: "Scenario Library" },
+  { to: "/live", icon: "fa-satellite-dish", label: "Live Multiplayer" },
   { to: "/catalog", icon: "fa-cubes", label: "Asset Catalog" },
   { to: "/builder", icon: "fa-magic", label: "Scenario Builder" },
   { to: "/leaderboard", icon: "fa-trophy", label: "Leaderboard" },

@@ -54,6 +54,66 @@ notifies against regulatory deadlines → **OT** switches to manual ops.
   a drop-in `AIDriver` (the workflow JSON becomes the agent's action space) later, with no engine
   change. Same for `AIReportGenerator`.
 
+### Layer 7 — Live Multiplayer (v3, human-driven roles)
+
+On top of the precompute engine, a **live interactive** mode lets multiple people play one mission
+together in real time (the `HumanDriver` seam the v2 design reserved). Backend in
+`backend/app/live/`, served over `POST/GET /api/live/sessions` + the `/ws/live/{id}` WebSocket.
+
+- **Lobby with no links.** A host starts a scenario "live"; it appears in the **Live Multiplayer**
+  list; teammates click it, enter a name and **pick a role**. No accounts — a player is a name + a
+  server-issued id.
+- **Human Red operator.** Red is driven through a **guided, mission-oriented lifecycle** faithful to
+  `red-team-masterclass.md`: Planning → Recon → Weaponise → Initial Access → Foothold → Internal
+  Recon → Privilege/Credentials → Lateral → Persistence → Defense Evasion/C2 → Objective/Impact
+  (`live/red_playbook.py`). Every action is checked against the live `World`, spends a
+  **detection-risk budget** (OPSEC §7.4), reveals intel through **fog-of-war recon**, and is scored
+  on objective progress + **stealth/discipline**. Pick an **adversary profile** (nation-state /
+  ransomware / cybercrime / insider) to set the budget and character.
+- **Human Blue defender.** Blue runs the defensive lifecycle from `blue-team-masterclass.md`:
+  Prepare → See (visibility/detection) → Decide (triage & scope-before-contain) → Hunt → Contain →
+  Eradicate → Recover → Learn (`live/blue_playbook.py`), with the appendix decision-checklist as the
+  spine. Scored on **detection coverage, MTTC, containment & eviction completeness, damage prevented**.
+- **Human SOC analyst.** SOC sits between Red and Blue (`live/soc_playbook.py`, from
+  `soc-masterclass.md`): Red's detected telemetry raises an **alert queue**; the SOC stands up
+  detection coverage, then **triages → classifies a P-level → escalates (declares an incident)**,
+  which hands the asset to Blue. Scored on coverage, MTTA, triage throughput and escalation. The
+  three roles chain: *Red telemetry → SOC alert/triage/escalate → Blue contain/eradicate/recover.*
+- **Auto-pilot for any empty seat (no AI).** A seat with no human operator is driven by a
+  **deterministic auto-driver** (`live/auto.py`) that walks its masterclass playbook one action per
+  tick — so you can play 1-v-1, watch Red-vs-auto-Blue+SOC, or spectate a full auto-vs-auto match.
+  The host can force any seat to Auto/Human in the lobby. These are the `Driver` seam the design
+  reserved — a future `AIDriver` drops in with no other change.
+- **Dedicated missions (the flow & goals all teams run inside).** Live Multiplayer is **mission-first**:
+  you launch one of 12 **standalone** missions from the offensive/validation family (`live/missions.py`,
+  from `cybersecurity-mission-encyclopedia.md` §2): Red Team Op · Adversary Emulation · Penetration
+  Test · Purple Team · Security Validation (BAS) · Ransomware Sim · Insider Threat Sim · Attack-Surface
+  · Cloud · Identity · Supply-Chain · Social-Engineering. Each mission is **self-contained** — it brings
+  its **own tailored environment** (built from the asset catalog; Cloud→cloud-heavy, Identity→AD-heavy,
+  Ransomware→file-shares+backups, …) and **re-points the objective/win condition, reweights stealth,
+  forces the adversary character, and sets the start state** (e.g. Identity → path-to-Domain-Admin;
+  Insider → assumed-breach + exfil; Pen Test → breadth, stealth not scored; Purple → coverage-focused).
+  Each team's success criteria are shown per mission. *(Future: these asset instances get backed by
+  real plugged-in VMs for an accurate sim — the catalog model is the seam.)*
+- **Black Phoenix is separate.** It stays its own thing — a pre-built **scenario** you can launch live
+  (mission chosen in the lobby) and the flagship of the single-operator precompute mode. Missions are
+  not nested under it.
+- **Red vs Blue on one shared World (purple mode).** Both act in real time on the *same* world: Red's
+  actions are visible to Blue; Blue's containment **mutates the world to hinder Red** — isolating a
+  foothold removes it, blocking egress stops exfil, segmentation blocks the lateral/OT pivot,
+  credential reset drops stolen privilege, eradication prevents Red's persistence re-establish. It's
+  a **race**: Red wins by proving the objective; Blue wins by **fully evicting** Red first. Detection
+  coverage comes from environment controls + the monitoring Blue enables (`detects()` in
+  `blue_playbook.py`); threat-hunting finds the rest.
+- **Reserved seats.** Mgmt / OT are joinable spectator seats today and plug into the same session
+  next, with no engine change.
+- Adding a Red/Blue/SOC action = one entry in `live/{red,blue,soc}_playbook.py`; the session
+  interprets it generically (same philosophy as the technique catalog).
+
+Try it: **Live Multiplayer → Go Live** (pick a scenario, choose Red), then open the session in a
+second browser, join, and pick **Blue** or **SOC** — or leave seats empty and they auto-pilot. The
+host's **Automation** panel forces any seat to Auto/Human.
+
 ---
 
 ## Run it — local dev (fastest, zero infra)

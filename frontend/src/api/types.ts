@@ -88,3 +88,101 @@ export interface Dashboard {
   recent_runs: any[]; threat_coverage: { label: string; pct: number }[];
   readiness: Record<string, number>;
 }
+
+// ---- Live multiplayer ------------------------------------------------------
+export interface LivePlayer { id: string; name: string; role: string | null; is_host: boolean; connected: boolean; }
+export interface LiveSessionSummary {
+  id: string; scenario_name: string; status: string; players: number; player_count: number;
+  roles: Record<string, number>; created_at: number;
+}
+export interface LiveStage { id: string; name: string; summary: string; ref: string; }
+export interface LiveMission {
+  id: string; name: string; klass: string; cadence: string; tagline: string; briefing: string;
+  primary_objective: string | null; stealth_weight: number; forced_profile: string | null;
+  recommended_profile: string; headline_metric: string; needs: string[];
+  success: { red?: string; soc?: string; blue?: string };
+}
+export interface LiveProfile { id: string; name: string; description: string; budget: number; traits: string[]; assumed_breach: boolean; }
+export interface LiveTarget { id: string; name: string; type: string; zone: string; }
+export interface LiveAction {
+  id: string; stage: string; label: string; description: string; tactic: string; mitre: string;
+  base_noise: number; noise: number; score: number; available: boolean; reason: string; done: boolean;
+  target_mode: "none" | "auto" | "select"; target_type: string | null; targets: LiveTarget[];
+  watched_by: string[]; objective: string | null; opsec: string;
+}
+export interface LiveObjective { key: string; label: string; met: boolean; primary: boolean; }
+export interface LiveIntel { t: number; text: string; }
+export interface LiveFinal {
+  objective_met: boolean; any_objective_met: boolean; secondary_met: number; action_score: number; stealth_bonus: number;
+  discipline_bonus: number; overspend_penalty: number; total_score: number; noise_spent: number;
+  budget: number; exposure_pct: number; actions_taken: number; objectives: LiveObjective[];
+}
+export interface LiveOperator {
+  profile: string; budget: number; noise_spent: number; exposure_pct: number; noise_multiplier: number;
+  score: number; concluded: boolean; final: LiveFinal | null; cred_scope: string; footholds: string[];
+  objectives: LiveObjective[]; intel: LiveIntel[]; history: any[]; flags: string[]; world_flags: string[];
+  actions: LiveAction[];
+}
+export interface LiveBlueAction {
+  id: string; stage: string; label: string; description: string; framework: string; score: number;
+  available: boolean; reason: string; done: boolean;
+  target_mode: "none" | "select"; target_type: string | null; targets: LiveTarget[]; note: string;
+}
+export interface LiveBlueFinal {
+  eviction_complete: boolean; coverage_pct: number; detected: number; detectable: number; mttc_s: number;
+  contained: number; footholds_total: number; prevented: string[]; action_score: number;
+  eviction_bonus: number; prevention_bonus: number; total_score: number; actions_taken: number;
+}
+export interface LiveDefender {
+  score: number; concluded: boolean; final: LiveBlueFinal | null;
+  monitoring: string[]; capabilities: string[]; coverage_pct: number; detected: number; detectable: number;
+  mttc_s: number; contained: number; footholds_total: number; prevented: string[]; defense_flags: string[];
+  objectives: LiveObjective[]; history: any[]; actions: LiveBlueAction[];
+}
+export interface LiveSocAction {
+  id: string; stage: string; label: string; description: string; ref: string; score: number;
+  available: boolean; reason: string; done: boolean; target_mode: "none" | "alert";
+  note: string; targets: LiveTarget[];
+}
+export interface LiveAlert {
+  id: string; t: number; action_id: string; label: string; mitre: string; tactic: string;
+  severity: string; asset_id: string | null; asset_label: string | null; status: string;
+  p_label: string; p_rank: number;
+}
+export interface LiveSocFinal {
+  coverage_pct: number; detected: number; detectable: number; triaged: number; escalated: number;
+  mtta_s: number; open_alerts: number; action_score: number; total_score: number; actions_taken: number;
+}
+export interface LiveSoc {
+  score: number; concluded: boolean; final: LiveSocFinal | null;
+  monitoring: string[]; capabilities: string[]; coverage_pct: number; detected: number; detectable: number;
+  triaged: number; escalated: number; mtta_s: number; objectives: LiveObjective[]; history: any[];
+  alerts: LiveAlert[]; actions: LiveSocAction[];
+}
+export interface LiveAsset {
+  id: string; type: string; zone: string; criticality: number; role: string | null; revealed: boolean;
+  name: string; security_state: string; health: string; is_foothold: boolean; incident: boolean;
+}
+export interface LiveEvent {
+  seq: number; t: number; kind: string; role: string; title: string; message: string;
+  severity: string; asset_id: string | null; asset_label: string | null; data: Record<string, any>;
+}
+export interface LiveSnapshot {
+  type: "snapshot";
+  session: { id: string; scenario_name: string; status: string; host_id: string; match_result: string | null; mission: string; mission_locked: boolean };
+  scenario: { name: string; description: string; type: string; label: string; phases: string[]; objectives: { red: string[]; blue: string[] } };
+  missions: LiveMission[];
+  mission: LiveMission;
+  players: LivePlayer[];
+  stages: LiveStage[];
+  blue_stages: LiveStage[];
+  soc_stages: LiveStage[];
+  profiles: LiveProfile[];
+  roles: { id: string; interactive: boolean }[];
+  auto: Record<string, boolean>;
+  operator: LiveOperator | null;
+  soc: LiveSoc | null;
+  defender: LiveDefender | null;
+  assets: LiveAsset[];
+  events: LiveEvent[];
+}

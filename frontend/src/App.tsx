@@ -8,6 +8,8 @@ import ActiveSim from "./pages/ActiveSim";
 import Builder from "./pages/Builder";
 import Leaderboard from "./pages/Leaderboard";
 import Reports from "./pages/Reports";
+import LiveSessions from "./pages/LiveSessions";
+import LiveRoom from "./pages/LiveRoom";
 
 export default function App() {
   return (
@@ -15,6 +17,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/library" element={<Library />} />
+        <Route path="/live" element={<LiveSessions />} />
+        <Route path="/live/:sessionId" element={<LiveRoom />} />
         <Route path="/launch/:scenarioId" element={<Launch />} />
         <Route path="/sim/:runId" element={<ActiveSim />} />
         <Route path="/catalog" element={<Catalog />} />
