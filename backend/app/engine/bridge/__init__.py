@@ -6,10 +6,14 @@ If no VM binding exists, the engine falls back to the existing deterministic mod
 """
 from .base import DetectionBridge, DetectionResult, ExecutionBridge, ExecutionResult, VMBinding
 from .registry import get_bridges, register_bridges
+from .caldera import CalderaConfig, CalderaExecutionBridge
+from .kali import KaliExecutionBridge
 
 __all__ = [
     "ExecutionBridge", "ExecutionResult",
     "DetectionBridge", "DetectionResult",
     "VMBinding",
     "get_bridges", "register_bridges",
+    "CalderaExecutionBridge", "CalderaConfig",
+    "KaliExecutionBridge",
 ]

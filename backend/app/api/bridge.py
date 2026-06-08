@@ -4,6 +4,8 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.engine.bridge.atomic import TECHNIQUE_ATOMICS
+from app.engine.bridge.caldera import TECHNIQUE_MITRE as CALDERA_TECHNIQUES
+from app.engine.bridge.kali import TECHNIQUE_KALI
 from app.engine.bridge.registry import get_bridges, vm_enabled
 
 router = APIRouter(prefix="/api/bridge", tags=["bridge"])
@@ -17,20 +19,30 @@ def bridge_status() -> dict:
         "vm_enabled": vm_enabled(),
         "execution_bridge": type(exec_bridge).__name__ if exec_bridge else None,
         "detection_bridge": type(detect_bridge).__name__ if detect_bridge else None,
+        "techniques_atomic": len(TECHNIQUE_ATOMICS),
+        "techniques_caldera": len(CALDERA_TECHNIQUES),
+        "techniques_kali": len(TECHNIQUE_KALI),
     }
 
 
 @router.get("/techniques")
 def technique_mappings() -> list[dict]:
-    """List all technique-to-Atomic Red Team mappings."""
-    return [
-        {
+    """List all technique mappings across all bridges."""
+    all_keys = set(TECHNIQUE_ATOMICS.keys()) | set(CALDERA_TECHNIQUES.keys()) | set(TECHNIQUE_KALI.keys())
+    results = []
+    for key in sorted(all_keys):
+        atomic = TECHNIQUE_ATOMICS.get(key)
+        caldera = CALDERA_TECHNIQUES.get(key)
+        kali = TECHNIQUE_KALI.get(key)
+        results.append({
             "technique_key": key,
-            "mitre_id": info["mitre"],
-            "atomic_test": info["test"],
-            "has_command": info["command"] is not None,
-            "needs_admin": info["needs_admin"],
-            "description": info["description"],
-        }
-        for key, info in TECHNIQUE_ATOMICS.items()
-    ]
+            "mitre_id": (atomic or {}).get("mitre", caldera or ""),
+            "bridges": {
+                "atomic": bool(atomic),
+                "caldera": bool(caldera),
+                "kali": bool(kali),
+            },
+            "kali_tool": kali["tool"] if kali else None,
+            "description": (kali or atomic or {}).get("description", ""),
+        })
+    return results
