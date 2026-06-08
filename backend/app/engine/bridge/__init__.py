@@ -8,6 +8,8 @@ from .base import DetectionBridge, DetectionResult, ExecutionBridge, ExecutionRe
 from .registry import get_bridges, register_bridges
 from .caldera import CalderaConfig, CalderaExecutionBridge
 from .kali import KaliExecutionBridge
+from .native import NativeExecutionBridge
+from .sysmon import SysmonDetectionBridge
 
 __all__ = [
     "ExecutionBridge", "ExecutionResult",
@@ -16,4 +18,6 @@ __all__ = [
     "get_bridges", "register_bridges",
     "CalderaExecutionBridge", "CalderaConfig",
     "KaliExecutionBridge",
+    "NativeExecutionBridge",
+    "SysmonDetectionBridge",
 ]
