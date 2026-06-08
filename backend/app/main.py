@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import app.engine  # noqa: F401  (populate asset/control/technique registries)
-from app.api import catalog, dashboard, live, runs, scenarios
+from app.api import bridge, catalog, dashboard, live, runs, scenarios
 from app.core.settings import settings
 from app.db.base import init_db
 from app.ws import live as ws_live
@@ -30,6 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(bridge.router)
 app.include_router(catalog.router)
 app.include_router(scenarios.router)
 app.include_router(runs.router)

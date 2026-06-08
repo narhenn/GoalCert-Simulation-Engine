@@ -22,6 +22,8 @@ from .environment import EnvironmentSpec, build_world
 from .events import SimEvent
 from .kpis import compute_kpis
 from .posture import Posture, build_posture
+from .bridge.base import VMBinding
+from .bridge.registry import get_bridges
 from .resolve import resolver as R
 from .result import ObjectiveStatus, RunResult
 from .scenario import REGULATORY_CATALOG, Scenario, TargetSelector
@@ -193,6 +195,8 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
     esc_correct = esc_total = 0
     hunt_found = hunt_planted = 0
     persistence_planted: list[dict] = []  # {type, technique, asset_id, asset_name, t}
+    vm_results: list[dict] = []  # tracks real VM execution + detection results
+    exec_bridge, detect_bridge = get_bridges()
     scores = {"red": 0, "blue": 0, "soc": 0, "mgmt": 0, "ot": 0}
     soc_max_p = PLevel.NONE
     escalated: set[str] = set()
@@ -337,6 +341,14 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                 successes += 1
                 scores["red"] += spec.score.red_success
                 affected = R.apply_effects(spec, world, target)
+                # VM bridge: if target has a real VM, record it for async execution
+                if exec_bridge and target and target.props.get("vm"):
+                    vm_results.append({
+                        "t": t, "technique": spec.key, "mitre": spec.mitre,
+                        "target_id": target.id, "target_name": tname,
+                        "phase": phase, "vm_host": target.props["vm"].get("host", ""),
+                        "mode": "real_vm", "model_success": True,
+                    })
                 # Blue recovery (tested backups) mitigates impact: down -> degraded
                 if posture.recovery and spec.key in IMPACT_TECHNIQUES and target is not None \
                         and target.health.value == "down":
@@ -696,6 +708,8 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
         "ransomware": bool(a.flags.get("ransomware")), "ot_impact": bool(a.flags.get("ot_impact")),
         "backups_enabled": backups_enabled,
         "persistence_planted": persistence_planted,
+        "vm_results": vm_results,
+        "vm_enabled": bool(exec_bridge),
         "persistence_eradicated": posture.eradicates,
         "posture": {
             "prevent_egress": posture.prevent_egress, "segmentation": posture.segment,

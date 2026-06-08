@@ -14,6 +14,17 @@ from .models.controls import get_control_type
 from .world import AssetInstance, ControlInstance, World
 
 
+class VMBindingSpec(BaseModel):
+    """Optional: maps a modeled asset to a real VM for live attack execution."""
+    host: str                                    # IP or hostname
+    port: int = 5986                             # WinRM HTTPS default
+    protocol: str = "winrm"                      # "winrm" or "ssh"
+    username: str = "Administrator"
+    password: str = ""
+    credential_ref: str = ""                     # key into a secrets store
+    os: str = "windows"                          # "windows" or "linux"
+
+
 class AssetSpec(BaseModel):
     id: str
     type: str
@@ -23,6 +34,7 @@ class AssetSpec(BaseModel):
     criticality: int | None = None
     data_sensitivity: int | None = None
     props: dict | None = None
+    vm: VMBindingSpec | None = None              # optional: real VM binding
 
 
 class ControlSpec(BaseModel):
@@ -48,6 +60,9 @@ def _build_asset(spec: AssetSpec) -> AssetInstance:
     props = dict(at.default_props())
     if spec.props:
         props.update(spec.props)
+    # Carry VM binding into props so the resolver can check it
+    if spec.vm is not None:
+        props["vm"] = spec.vm.model_dump()
     return AssetInstance(
         id=spec.id,
         type_key=spec.type,

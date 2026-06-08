@@ -685,6 +685,28 @@ def _persistence_report(run: dict) -> dict:
     }
 
 
+def _vm_execution_report(run: dict) -> dict:
+    """VM bridge execution summary — which techniques were executed on real VMs vs modeled."""
+    s = run.get("summary", {})
+    vm_results = s.get("vm_results", [])
+    vm_enabled = s.get("vm_enabled", False)
+    if not vm_enabled and not vm_results:
+        return {"enabled": False, "total_real": 0, "total_modeled": 0, "items": []}
+
+    # Count how many attack events happened total
+    attack_count = sum(1 for e in run.get("events", []) if e.get("type") == "attack")
+    real_count = len(vm_results)
+    modeled_count = attack_count - real_count
+
+    return {
+        "enabled": vm_enabled,
+        "total_real": real_count,
+        "total_modeled": modeled_count,
+        "coverage_pct": round(real_count / attack_count * 100) if attack_count else 0,
+        "items": vm_results,
+    }
+
+
 def _decision_gate_report(run: dict) -> list[dict]:
     """Extract decision gate events from the timeline for the report."""
     gates = []
@@ -721,6 +743,7 @@ def generate_report(run: dict) -> dict:
         "zone_analysis": _zone_analysis(run),
         "credential_timeline": _credential_timeline(run),
         "persistence_report": _persistence_report(run),
+        "vm_execution": _vm_execution_report(run),
         "decision_gates": _decision_gate_report(run),
         "regulatory_impact": _regulatory_impact(run),
         "financial_impact": _financial_impact(run),
