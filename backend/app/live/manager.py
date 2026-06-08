@@ -150,6 +150,7 @@ class LiveManager:
                 if session is None or not self._conns.get(session_id):
                     break  # gone, or nobody watching
                 if session.status == "completed":
+                    self._try_persist(session)
                     break
                 if session.status != "active":
                     continue  # lobby — wait for start
@@ -158,10 +159,22 @@ class LiveManager:
                 if changed:
                     await self.broadcast_snapshot(session_id)
                     if session.status == "completed":
-                        self.persist_report(session)
+                        self._try_persist(session)
                         break
         finally:
             self._tickers.pop(session_id, None)
+
+    def _try_persist(self, session: LiveSession) -> None:
+        """Try to persist the report, log failures instead of crashing."""
+        try:
+            result = self.persist_report(session)
+            if result:
+                import sys
+                print(f"[live] Report persisted for session {session.id} as run {result}", file=sys.stderr)
+        except Exception as exc:
+            import sys, traceback
+            print(f"[live] Failed to persist report for {session.id}: {exc}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
 
 
 manager = LiveManager()

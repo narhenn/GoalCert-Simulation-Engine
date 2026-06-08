@@ -830,6 +830,36 @@ class LiveSession:
             self.report = live_report.build_report(self)
         except Exception:  # a report failure must never break match conclusion
             self.report = None
+        # Persist report to DB so it survives restart and shows in Reports page.
+        if self.report is not None:
+            try:
+                from app.db.base import SessionLocal
+                from app.db.models import Report as ReportRow, Run as RunRow
+                db = SessionLocal()
+                if db.get(RunRow, self.id) is None:
+                    teams = self.report.get("teams", {})
+                    scores = {role: t.get("score", 0) for role, t in teams.items()}
+                    outcome = self.report.get("outcome", {})
+                    run_row = RunRow(
+                        id=self.id, scenario_id=self.scenario.id if self.scenario else "live",
+                        scenario_name=f"[LIVE] {self.scenario_name}",
+                        operator=self.players[self.host_id].name if self.host_id in self.players else "live",
+                        status="completed", focus_role="blue", config={}, environment_spec={},
+                        duration_s=self.report.get("duration_s", 0), scores=scores,
+                        kpis={}, summary={"live_session": True, "result": result,
+                                          "verdict": verdict, "mission": self.mission,
+                                          "objective_met": outcome.get("objective_met", False)},
+                        objectives={}, events=self.events[-50:], final_assets=[],
+                    )
+                    report_row = ReportRow(run_id=self.id, content=self.report)
+                    db.add(run_row)
+                    db.add(report_row)
+                    db.commit()
+                db.close()
+            except Exception as exc:
+                import sys, traceback
+                print(f"[LIVE] DB persist failed: {exc}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
 
     # ---- snapshots -----------------------------------------------------------
     def list_summary(self) -> dict:
