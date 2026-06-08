@@ -96,6 +96,9 @@ async def live_ws(websocket: WebSocket, session_id: str, player_id: str = "") ->
                 await websocket.send_json({"type": "error", "message": err})
             if changed:
                 await manager.broadcast_snapshot(session_id)
+                # Persist report to DB when match completes
+                if session.status == "completed" and session.report is not None:
+                    manager.persist_report(session)
     except (WebSocketDisconnect, RuntimeError):
         pass
     finally:

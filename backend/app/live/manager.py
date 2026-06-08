@@ -14,6 +14,8 @@ from fastapi import WebSocket
 
 from app.engine.environment import EnvironmentSpec
 from app.engine.scenario import Scenario
+from app.db.base import SessionLocal
+from app.db.models import Report as ReportRow, Run as RunRow
 
 from . import auto
 from .session import LiveSession, Player
@@ -48,6 +50,62 @@ class LiveManager:
         """Joinable / running sessions, newest first (completed ones drop off)."""
         rows = [s.list_summary() for s in self._sessions.values() if s.status in ("lobby", "active")]
         return sorted(rows, key=lambda r: r["created_at"], reverse=True)
+
+    def persist_report(self, session: LiveSession) -> str | None:
+        """Save the live match report to the DB as a Run + Report row so it shows in Reports page."""
+        if session.report is None:
+            return None
+        try:
+            db = SessionLocal()
+            run_id = session.id
+            report = session.report
+            duration_s = report.get("duration_s", 0)
+            teams = report.get("teams", {})
+            scores = {role: t.get("score", 0) for role, t in teams.items()}
+            kpis = {}
+            for role, t in teams.items():
+                for k, v in t.get("kpis", {}).items():
+                    kpis[f"{role}_{k}"] = v
+            outcome = report.get("outcome", {})
+            summary = {
+                "result": report.get("result", ""),
+                "verdict": report.get("verdict", ""),
+                "mission": report.get("mission", {}).get("name", ""),
+                "profile": report.get("profile", ""),
+                "objective_met": outcome.get("objective_met", False),
+                "assets_compromised": outcome.get("assets_compromised", 0),
+                "assets_contained": outcome.get("assets_contained", 0),
+                "assets_down": outcome.get("assets_down", 0),
+                "eviction_complete": outcome.get("eviction_complete", False),
+                "live_session": True,
+            }
+            run_row = RunRow(
+                id=run_id,
+                scenario_id=session.scenario.id if session.scenario else "live",
+                scenario_name=f"[LIVE] {session.scenario_name}",
+                operator=session.host.name if session.host else "live",
+                status="completed",
+                focus_role="blue",
+                config={},
+                environment_spec={},
+                duration_s=duration_s,
+                scores=scores,
+                kpis=kpis,
+                summary=summary,
+                objectives={},
+                events=session.events[-100:],  # last 100 events to avoid huge rows
+                final_assets=[],
+            )
+            report_row = ReportRow(run_id=run_id, content=report)
+            existing = db.get(RunRow, run_id)
+            if existing is None:
+                db.add(run_row)
+                db.add(report_row)
+                db.commit()
+            db.close()
+            return run_id
+        except Exception:
+            return None
 
     def remove(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
@@ -100,6 +158,7 @@ class LiveManager:
                 if changed:
                     await self.broadcast_snapshot(session_id)
                     if session.status == "completed":
+                        self.persist_report(session)
                         break
         finally:
             self._tickers.pop(session_id, None)
