@@ -98,6 +98,11 @@ together in real time (the `HumanDriver` seam the v2 design reserved). Backend i
 - **Black Phoenix is separate.** It stays its own thing — a pre-built **scenario** you can launch live
   (mission chosen in the lobby) and the flagship of the single-operator precompute mode. Missions are
   not nested under it.
+- **All-teams After-Action Report.** When a live match concludes, every participant is shown a
+  **mission report** (`live/live_report.py`): the verdict + outcome, a **per-team scorecard** (Red /
+  SOC / Blue — score breakdown, KPIs, strengths/weaknesses, action timelines), the **attack path with
+  detection coverage** (which Red techniques were seen vs missed), and **prioritised recommendations**.
+  Surfaced inline in the room and via `GET /api/live/sessions/{id}/report`.
 - **Red vs Blue on one shared World (purple mode).** Both act in real time on the *same* world: Red's
   actions are visible to Blue; Blue's containment **mutates the world to hinder Red** — isolating a
   foothold removes it, blocking egress stops exfil, segmentation blocks the lateral/OT pivot,

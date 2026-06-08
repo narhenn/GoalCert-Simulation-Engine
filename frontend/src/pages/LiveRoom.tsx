@@ -5,6 +5,7 @@ import { useLiveSocket } from "../hooks/useLiveSocket";
 import RedConsole from "../components/RedConsole";
 import BlueConsole from "../components/BlueConsole";
 import SocConsole from "../components/SocConsole";
+import LiveReport from "../components/LiveReport";
 import { loadPlayer, storePlayer, myName } from "./LiveSessions";
 
 const ROLE_META: Record<string, { icon: string; color: string; label: string }> = {
@@ -246,6 +247,9 @@ export default function LiveRoom() {
           </div>
         </div>
       )}
+
+      {/* MISSION AFTER-ACTION REPORT — all teams, shown when the match concludes */}
+      {status === "completed" && snap.report && <LiveReport report={snap.report} />}
 
       {status !== "lobby" && snap.operator && (() => {
         const role = you?.role;

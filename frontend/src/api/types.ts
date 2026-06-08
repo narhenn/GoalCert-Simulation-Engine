@@ -163,6 +163,27 @@ export interface LiveAsset {
   id: string; type: string; zone: string; criticality: number; role: string | null; revealed: boolean;
   name: string; security_state: string; health: string; is_foothold: boolean; incident: boolean;
 }
+export interface LiveReportTeam {
+  score: number; breakdown?: Record<string, number>; kpis: Record<string, any>;
+  objectives?: LiveObjective[]; timeline: any[]; intel?: LiveIntel[]; alerts?: LiveAlert[];
+  findings: { strengths: string[]; weaknesses: string[] };
+}
+export interface LiveMitreStep {
+  t: number; action_id: string; label: string; mitre: string; tactic: string;
+  target: string | null; noise: number; detected: boolean;
+}
+export interface LiveMatchReport {
+  session_id: string;
+  mission: { id: string; name: string; klass: string; briefing: string; success: Record<string, string> };
+  profile: string; result: string; verdict: string; duration_s: number;
+  outcome: {
+    objective_met: boolean; objectives: LiveObjective[]; assets_total: number;
+    assets_compromised: number; assets_contained: number; assets_down: number;
+    footholds_total: number; eviction_complete: boolean; coverage_pct: number;
+  };
+  teams: { red: LiveReportTeam; soc: LiveReportTeam; blue: LiveReportTeam };
+  mitre: LiveMitreStep[]; recommendations: string[]; note: string;
+}
 export interface LiveEvent {
   seq: number; t: number; kind: string; role: string; title: string; message: string;
   severity: string; asset_id: string | null; asset_label: string | null; data: Record<string, any>;
@@ -185,4 +206,5 @@ export interface LiveSnapshot {
   defender: LiveDefender | null;
   assets: LiveAsset[];
   events: LiveEvent[];
+  report: LiveMatchReport | null;
 }

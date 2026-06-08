@@ -75,6 +75,17 @@ def get_session_detail(session_id: str) -> dict:
     return s
 
 
+@router.get("/sessions/{session_id}/report")
+def get_session_report(session_id: str) -> dict:
+    """The all-teams After-Action Report for a concluded live mission."""
+    session = manager.get(session_id)
+    if session is None:
+        raise HTTPException(404, "session not found")
+    if session.report is None:
+        raise HTTPException(409, "report not ready — the mission has not concluded yet")
+    return session.report
+
+
 @router.post("/sessions/{session_id}/join", status_code=201)
 def join_session(session_id: str, req: JoinRequest) -> dict:
     session = manager.get(session_id)

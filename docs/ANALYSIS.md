@@ -351,6 +351,13 @@ The host's **Automation** panel can force any seat to Auto/Human/Default. So you
 - **SOC:** detection points (per detected behaviour) + triage/escalation points; reports coverage %, MTTA, triaged/escalated.
 - **Blue:** action points + **eviction bonus** (+200) + **prevention bonus** (+75 each for exfil/ransomware/OT prevented); reports MTTC, containment/eviction completeness.
 
+**Mission After-Action Report (all teams).** On conclusion the system builds a full report
+(`live/live_report.py`) shown to everyone in the room and available at
+`GET /api/live/sessions/{id}/report`: verdict + outcome stats, a **per-team scorecard** (score
+breakdown, KPIs, strengths/weaknesses, action timeline), the **attack path with detection coverage**
+(each Red step flagged detected/missed), and **prioritised recommendations**. *(Currently in-memory +
+snapshot; durable DB persistence is the remaining follow-up — see gaps.)*
+
 ---
 
 ## 12. Precompute mode
@@ -388,6 +395,7 @@ cd frontend && npx tsc -b && npm run build
 | Containment bites | Blue **block egress**, then Red tries exfil | exfil fails; "prevented" increments |
 | Win (Red) | drive Red to its objective | banner "Red wins"; scorecards |
 | Win (Blue) | evict fully before objective | banner "Blue wins" |
+| Mission report | let any match conclude | all-teams AAR appears: per-team scorecards, attack-path coverage, recommendations |
 | Missions | launch Pen Test vs Identity vs Cloud vs Ransomware | different env + goal + stealth weighting |
 | BP as scenario | launch Black Phoenix from Pre-built scenarios | mission selectable in lobby (not locked) |
 | Spectator | join as Observer | Red/SOC/Blue lens toggle; chat works |
@@ -450,7 +458,7 @@ frontend/src/        React/TS — Library, Launch, ActiveSim, Reports + Live{Ses
 ### 🔴 High — correctness / will bite you
 1. **No live-session cleanup → memory leak.** `manager.remove` is never called; completed/abandoned sessions live forever. *Fix: TTL reaper.*
 2. **No match timeout / stalemate.** If neither win condition triggers, a match can run indefinitely. *Fix: max tick/time budget → draw.*
-3. **Live matches aren't persisted.** No AAR / report / leaderboard / history for multiplayer (all precompute-only). *Fix: write a `Run`+`Report` on match end.*
+3. **Live matches aren't *durably* persisted.** A full all-teams After-Action Report is now generated on conclusion and shown in-room + via REST (`live/live_report.py`), **but** it lives only in the in-memory session — it's lost on server restart and doesn't yet feed the precompute Reports page / leaderboard / history. *Fix: write a `Run`+`Report` (or a dedicated live-report table) on match end.*
 4. **Live mode ignores difficulty/readiness/`RunConfig`.** Detection is binary (control present ∪ monitoring on); the rich control-efficacy/difficulty scaling is unused live. *Fix: feed efficacy into `bp.detects` + noise.*
 5. **Live engine is not deterministic.** Wall-clock based; MTTD/MTTC quantise to the ~3s tick. Determinism guarantees apply to precompute only. *Fix: logical sim-clock.*
 

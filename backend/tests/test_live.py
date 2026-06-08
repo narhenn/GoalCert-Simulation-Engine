@@ -283,6 +283,38 @@ def test_mission_drives_goal_and_scoring(client):
     assert s3.stealth_weight == 0.0
 
 
+def test_live_mission_report(client):
+    """A concluded live mission produces an all-teams After-Action Report (REST + structure)."""
+    from app.live.manager import manager
+    from app.live import auto
+
+    r = client.post("/api/live/sessions", json={"mission_id": "identity_assessment", "host_name": "H"})
+    sid = r.json()["session_id"]
+    sess = manager.get(sid)
+    sess.claim_role(r.json()["player_id"], "observer")
+
+    # report not ready before the mission concludes
+    assert client.get(f"/api/live/sessions/{sid}/report").status_code == 409
+
+    sess.start()
+    for _ in range(120):
+        auto.tick(sess)
+        if sess.status == "completed":
+            break
+    assert sess.status == "completed"
+
+    rep = client.get(f"/api/live/sessions/{sid}/report")
+    assert rep.status_code == 200
+    data = rep.json()
+    assert data["result"] in ("red", "blue", "draw")
+    assert set(data["teams"]) == {"red", "soc", "blue"}
+    for team in ("red", "soc", "blue"):
+        t = data["teams"][team]
+        assert "score" in t and "kpis" in t and "findings" in t and "timeline" in t
+    assert isinstance(data["mitre"], list) and isinstance(data["recommendations"], list)
+    assert data["mission"]["name"] == "Identity Security Assessment"
+
+
 def test_non_red_cannot_act(client):
     created = _create(client)
     sid, host = created["session_id"], created["player_id"]

@@ -23,6 +23,7 @@ from app.engine.scenario import Scenario
 from app.engine.world import AssetInstance, World
 
 from . import blue_playbook as bp
+from . import live_report
 from . import missions as mp
 from . import red_playbook as rp
 from . import soc_playbook as sp
@@ -129,6 +130,7 @@ class LiveSession:
         self.red_ever_foothold: bool = False
         self.impact_occurred: bool = False
         self.match_result: str | None = None
+        self.report: dict | None = None     # all-teams AAR, built on conclude
         self._last_state_changes: list[str] = []
         # detection / alert queue (SOC-owned coverage)
         self.detected_actions: int = 0
@@ -823,6 +825,11 @@ class LiveSession:
                    "draw": "Operation concluded."}.get(result, "Operation concluded.")
         self._emit("system", "Match concluded", verdict, role="system", severity="critical",
                    data={"result": result})
+        # Build the all-teams After-Action Report (the live mission report).
+        try:
+            self.report = live_report.build_report(self)
+        except Exception:  # a report failure must never break match conclusion
+            self.report = None
 
     # ---- snapshots -----------------------------------------------------------
     def list_summary(self) -> dict:
@@ -989,4 +996,5 @@ class LiveSession:
             "defender": self._defender_public(),
             "assets": self._asset_public(),
             "events": self.events,
+            "report": self.report,
         }
