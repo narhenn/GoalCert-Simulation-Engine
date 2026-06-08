@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GoalCert — VM Integration Research &amp; Implementation Plan</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#060910;--card:#0D1320;--surface:#131B2C;--lift:#1C2840;--border:rgba(255,255,255,.06);--text:#ECF0F7;--body:#8B9BB5;--muted:#4E5D73;--accent:#00D4FF;--red:#FF4757;--green:#22C55E;--yellow:#FACC15;--purple:#8B5CF6;--orange:#F97316;--blue:#3B82F6;--mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.75}
+.w{max-width:940px;margin:0 auto;padding:40px 24px 100px}
+.hero{text-align:center;padding:48px 20px;margin-bottom:36px;background:linear-gradient(135deg,rgba(255,71,87,.03),rgba(0,212,255,.04));border:1px solid var(--border);border-radius:16px}
+.hero .chip{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--red);background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.2);padding:4px 16px;border-radius:20px;margin-bottom:16px}
+.hero h1{font-size:34px;font-weight:800;letter-spacing:-.5px}
+.hero h1 b{color:var(--accent)}
+.hero p{color:var(--muted);font-size:14px;margin-top:8px;max-width:660px;margin-left:auto;margin-right:auto}
+
+.sec{margin-bottom:44px}
+.sec h2{font-size:20px;font-weight:700;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sec h2 .ico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.sec h3{font-size:15px;font-weight:700;margin:20px 0 10px;color:var(--accent)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px}
+.card .label{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.card p{color:var(--body);font-size:13px;margin-bottom:8px}
+.card p strong{color:var(--text)}
+
+code{font-family:var(--mono);font-size:12px;background:rgba(0,212,255,.06);color:var(--accent);padding:2px 6px;border-radius:4px}
+pre{background:#030508;border:1px solid var(--border);border-radius:8px;padding:14px 18px;font-family:var(--mono);font-size:11px;line-height:1.7;overflow-x:auto;margin:10px 0;color:var(--body)}
+pre b{color:var(--accent);font-weight:400}
+pre em{color:var(--green);font-style:normal}
+pre i{color:var(--muted);font-style:normal}
+
+table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}
+th{padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);background:var(--surface);border-bottom:1px solid var(--border)}
+td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--body);vertical-align:top}
+td strong{color:var(--text);font-weight:600}
+
+.flow{display:flex;gap:0;align-items:center;margin:16px 0;flex-wrap:wrap}
+.flow .fb{padding:8px 14px;font-size:11px;font-weight:600;border-radius:8px;background:var(--lift);border:1px solid var(--border)}
+.flow .fa{color:var(--muted);font-size:10px;padding:0 8px}
+
+.tag{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:9px;font-weight:600;padding:2px 8px;border-radius:4px;margin-right:4px}
+.tag.free{background:rgba(34,197,94,.1);color:var(--green)}
+.tag.rec{background:rgba(0,212,255,.1);color:var(--accent)}
+.tag.skip{background:rgba(255,71,87,.1);color:var(--red)}
+.tag.alt{background:rgba(139,92,246,.1);color:var(--purple)}
+
+.milestone{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;overflow:hidden}
+.milestone .mh{padding:16px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.milestone .mn{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:15px;font-weight:700;flex-shrink:0}
+.milestone .mb{padding:16px 20px}
+.milestone .mb li{color:var(--body);font-size:13px;margin-bottom:6px;line-height:1.6}
+.milestone .mb li strong{color:var(--text)}
+
+.verdict{background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.15);border-radius:10px;padding:18px 22px;margin:20px 0;font-size:13px;line-height:1.75;color:var(--body)}
+.verdict strong{color:var(--text)}
+.verdict em{color:var(--accent);font-style:normal;font-weight:600}
+
+.pbtn{position:fixed;bottom:20px;right:20px;background:var(--accent);color:#000;border:none;padding:10px 20px;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer;font-family:var(--sans);box-shadow:0 4px 24px rgba(0,212,255,.3)}
+@media print{body{background:#fff;color:#000}.card,.milestone{break-inside:avoid;border:1px solid #ddd}.pbtn{display:none}}
+</style>
+</head>
+<body>
+<div class="w">
+
+<div class="hero">
+  <div class="chip">Research Report</div>
+  <h1>VM Integration <b>Implementation Plan</b></h1>
+  <p>How to connect the GoalCert Simulation Engine to real VMs, real attacks, and real detection. Research compiled from 4 parallel investigations.</p>
+</div>
+
+<!-- ============================================================ -->
+<div class="sec">
+  <h2><div class="ico" style="background:rgba(255,71,87,.1);color:var(--red)">!</div> The Problem Prem Raised</h2>
+  <div class="verdict">
+    Prem said: <em>"This is still a tabletop simulation. We need to add VMware."</em><br><br>
+    What he means: the simulation currently says <strong>"LSASS memory access by non-system process"</strong> as a text string. He wants a real Windows VM where Mimikatz actually runs, and a real SIEM that actually fires an alert. The simulation engine stays as the <strong>orchestrator</strong>, but the attacks and detections become real.<br><br>
+    This is achievable. The architecture is a <em>hybrid model</em>: if a real VM exists for an asset, the engine executes the real attack; if not, it falls back to the existing model. Zero rewrite of the current engine.
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="sec">
+  <h2><div class="ico" style="background:rgba(0,212,255,.1);color:var(--accent)">&#9881;</div> Recommended Stack (All Free &amp; Open Source)</h2>
+
+  <table>
+    <tr><th>Layer</th><th>Tool</th><th>What It Does</th><th>Cost</th></tr>
+    <tr><td><strong>VM Provisioning</strong></td><td>Proxmox VE + Terraform</td><td>Create/destroy Windows+Linux VMs from templates via API</td><td><span class="tag free">FREE</span></td></tr>
+    <tr><td><strong>Attack Execution</strong></td><td>Atomic Red Team + atomic-operator</td><td>1,400 MITRE-mapped attack tests, executable via Python</td><td><span class="tag free">FREE</span></td></tr>
+    <tr><td><strong>SIEM + EDR</strong></td><td>Wazuh (all-in-one)</td><td>Log collection, detection rules (MITRE-mapped), alerting, API</td><td><span class="tag free">FREE</span></td></tr>
+    <tr><td><strong>Endpoint Telemetry</strong></td><td>Sysmon (SwiftOnSecurity config)</td><td>Rich process/network/registry/LSASS telemetry on Windows</td><td><span class="tag free">FREE</span></td></tr>
+    <tr><td><strong>Forensic Hunting</strong></td><td>Velociraptor (optional)</td><td>On-demand forensic queries across endpoints</td><td><span class="tag free">FREE</span></td></tr>
+    <tr><td><strong>Orchestrator</strong></td><td>Your existing FastAPI engine</td><td>Orchestrates attacks, verifies detection, scores, reports</td><td><span class="tag rec">EXISTS</span></td></tr>
+  </table>
+
+  <div class="verdict"><strong>Total infrastructure cost: $0 in software.</strong> You only pay for the VMs (self-hosted on Proxmox, or cloud EC2/Azure instances).</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="sec">
+  <h2><div class="ico" style="background:rgba(139,92,246,.1);color:var(--purple)">&#9634;</div> Architecture: The Hybrid Bridge</h2>
+
+  <div class="flow">
+    <div class="fb">Engine resolves attack step</div><div class="fa">&#8594;</div>
+    <div class="fb">Has VM binding?</div><div class="fa">&#8594;</div>
+    <div class="fb" style="border-color:rgba(0,212,255,.3)">YES: Execute on real VM</div><div class="fa">&#8594;</div>
+    <div class="fb">Query SIEM for alert</div><div class="fa">&#8594;</div>
+    <div class="fb">Feed result back to engine</div>
+  </div>
+  <div class="flow">
+    <div class="fb" style="opacity:.5">Engine resolves attack step</div><div class="fa">&#8594;</div>
+    <div class="fb" style="opacity:.5">Has VM binding?</div><div class="fa">&#8594;</div>
+    <div class="fb" style="border-color:rgba(255,214,0,.3)">NO: Use existing model</div><div class="fa">&#8594;</div>
+    <div class="fb" style="opacity:.5">Score &amp; report as before</div>
+  </div>
+
+  <p style="color:var(--body);font-size:13px;margin-top:12px">The model stays as the orchestration/scoring layer. Real VMs are <strong>optional per asset</strong>. This means every existing scenario, test, and feature keeps working with zero changes.</p>
+
+  <h3>Asset-to-VM Mapping</h3>
+  <p style="color:var(--body);font-size:13px">Add an optional <code>vm</code> field to <code>AssetSpec</code>. If present, the engine sends attacks to that VM.</p>
+  <pre><i># In the Launch page or scenario JSON:</i>
+{
+  "id": "ws-ceo", "type": "endpoint", "name": "WS-CEO",
+  "zone": "corp", "criticality": 2,
+  <b>"vm": {
+    "host": "192.168.1.50",
+    "protocol": "winrm",
+    "username": "Administrator",
+    "os": "windows"
+  }</b>
+}</pre>
+
+  <h3>Execution Bridge (Python Interface)</h3>
+  <pre><b>class ExecutionBridge</b>(abc.ABC):
+    @abc.abstractmethod
+    async def <em>execute</em>(self, spec, target) -> ExecutionResult: ...
+
+<b>class DetectionBridge</b>(abc.ABC):
+    @abc.abstractmethod
+    async def <em>query_detection</em>(self, spec, target, executed_at) -> DetectionResult: ...</pre>
+
+  <p style="color:var(--body);font-size:13px">Two abstract classes. <code>AtomicExecutionBridge</code> runs Atomic Red Team tests via WinRM. <code>WazuhDetectionBridge</code> queries the Wazuh API for alerts matching the technique and time window.</p>
+</div>
+
+<!-- ============================================================ -->
+<div class="sec">
+  <h2><div class="ico" style="background:rgba(255,112,67,.1);color:var(--orange)">&#9889;</div> Attack Execution: What Actually Runs on the VMs</h2>
+
+  <table>
+    <tr><th>Technique</th><th>MITRE ID</th><th>Actual Command on VM</th><th>Needs Admin?</th></tr>
+    <tr><td><strong>LSASS Dump</strong></td><td>T1003.001</td><td><code>rundll32 comsvcs.dll, MiniDump (Get-Process lsass).id $env:TEMP\lsass.dmp full</code></td><td>Yes</td></tr>
+    <tr><td><strong>Kerberoasting</strong></td><td>T1558.003</td><td><code>Rubeus.exe kerberoast /outfile:hashes.txt</code></td><td>No (domain user)</td></tr>
+    <tr><td><strong>Lateral Movement</strong></td><td>T1021.002</td><td><code>psexec.py domain/user:pass@target cmd.exe</code> (impacket)</td><td>Yes (on target)</td></tr>
+    <tr><td><strong>Scheduled Task</strong></td><td>T1053.005</td><td><code>schtasks /create /tn "T1053" /sc onlogon /tr "cmd.exe /c calc.exe"</code></td><td>Yes</td></tr>
+    <tr><td><strong>Ransomware Sim</strong></td><td>T1486</td><td><code>gpg --batch --passphrase "test" --cipher-algo AES-256 -c testfile.txt</code></td><td>No</td></tr>
+    <tr><td><strong>Phishing (post-click)</strong></td><td>T1566.001</td><td><code>Invoke-AtomicTest T1566.001</code> (drops macro doc in %TEMP%)</td><td>No</td></tr>
+  </table>
+
+  <div class="card">
+    <div class="label">How to trigger from Python</div>
+    <pre><i># Option 1: atomic-operator (pure Python, pip install)</i>
+from atomic_operator import AtomicOperator
+op = AtomicOperator()
+op.run(techniques=["T1003.001"],
+       hostname="192.168.1.50",
+       username="admin", password="pass")
+
+<i># Option 2: pywinrm (direct WinRM)</i>
+import winrm
+s = winrm.Session('https://target:5986/wsman',
+    auth=('admin', 'P@ss'), transport='ntlm')
+r = s.run_ps('Invoke-AtomicTest T1003.001 -TestNumbers 2')
+print(r.std_out.decode())</pre>
+  </div>
+
+  <div class="card">
+    <div class="label">Safe ransomware simulation</div>
+    <p>Atomic Red Team's T1486 tests encrypt <strong>only canary test files</strong> (created in %TEMP%), not real data. The <code>-Cleanup</code> flag deletes them. VMs run on isolated networks with snapshots that revert after each exercise.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="sec">
+  <h2><div class="ico" style="background:rgba(34,197,94,.1);color:var(--green)">&#128270;</div> Detection: How to Verify the SIEM Caught It</h2>
+
+  <div class="card">
+    <div class="label">Wazuh detection query (Python)</div>
+    <pre><i># After executing T1003.001 on WIN-TARGET at 14:30:00</i>
+import time, requests
+time.sleep(60)  <i># wait for log pipeline latency</i>
+
+resp = requests.get("https://wazuh:9200/wazuh-alerts-*/_search",
+    auth=("admin", "admin"), verify=False,
+    json={"query": {"bool": {"must": [
+        {"range": {"@timestamp": {"gte": "2026-06-08T14:30:00Z",
+                                   "lte": "2026-06-08T14:35:00Z"}}},
+        {"term": {"agent.name": "WIN-TARGET"}},
+        {"term": {"rule.mitre.id": "T1003.001"}}
+    ]}}})
+
+alerts = resp.json()["hits"]["hits"]
+<em>detected</em> = len(alerts) > 0
+<em>latency</em> = alerts[0]["_source"]["@timestamp"] if detected else None</pre>
+  </div>
+
+  <div class="card">
+    <div class="label">What the report would show</div>
+    <p>Instead of <strong>"Modeled detection latency: 90s"</strong> (the current model), the AAR would show:<br>
+    <strong>"Actual SIEM detection latency: 47s — Wazuh rule 92652 fired on WIN-TARGET"</strong><br>
+    Side-by-side comparison: model vs reality. That's what makes this a real training platform, not a tabletop.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="sec">
+  <h2><div class="ico" style="background:rgba(250,204,21,.1);color:var(--yellow)">&#128187;</div> Minimum Lab Setup (3 VMs)</h2>
+
+  <table>
+    <tr><th>VM</th><th>Role</th><th>OS</th><th>Software</th><th>RAM</th></tr>
+    <tr><td><strong>DC01</strong></td><td>Domain Controller, DNS, AD</td><td>Windows Server 2019</td><td>Sysmon + Wazuh Agent</td><td>4 GB</td></tr>
+    <tr><td><strong>WS01</strong></td><td>Workstation (victim)</td><td>Windows 10/11</td><td>Sysmon + Wazuh Agent + Atomic Red Team</td><td>4 GB</td></tr>
+    <tr><td><strong>WAZUH</strong></td><td>SIEM + Dashboard</td><td>Ubuntu 22.04</td><td>Wazuh Manager + Indexer + Dashboard (Docker)</td><td>6 GB</td></tr>
+  </table>
+
+  <p style="color:var(--body);font-size:13px;margin-top:8px"><strong>Total: ~14 GB RAM.</strong> Can run on a single Proxmox host, a beefy laptop, or 3 small cloud instances. This 3-VM setup covers the full kill chain: initial access on WS01, credential dumping, kerberoasting against DC01, lateral movement, persistence, and ransomware simulation.</p>
+</div>
+
+<!-- ============================================================ -->
+<div class="sec">
+  <h2><div class="ico" style="background:rgba(0,212,255,.1);color:var(--accent)">&#128204;</div> Implementation Milestones</h2>
+
+  <div class="milestone">
+    <div class="mh">
+      <div class="mn" style="background:rgba(34,197,94,.1);color:var(--green)">1</div>
+      <div><strong>Proof of Concept — 1 VM, 3 Techniques</strong><br><span style="font-size:12px;color:var(--muted)">~3-5 days | Proves the concept works end-to-end</span></div>
+    </div>
+    <div class="mb"><ul>
+      <li><strong>1 Windows VM</strong> with Sysmon (SwiftOnSecurity config) + Atomic Red Team installed</li>
+      <li><strong>1 Wazuh instance</strong> (Docker) ingesting Sysmon logs from the Windows VM</li>
+      <li><strong>3 techniques wired:</strong> <code>credential_dump</code> (T1003.001), <code>kerberoasting</code> (T1558.003), <code>persistence_task</code> (T1053.005)</li>
+      <li><strong>Bridge code:</strong> <code>ExecutionBridge</code> + <code>DetectionBridge</code> abstract classes + <code>AtomicExecutionBridge</code> + <code>WazuhDetectionBridge</code> implementations</li>
+      <li><strong>Verify:</strong> engine runs scenario, hits VM for those 3, falls back to model for the other 11, Wazuh generates alerts, detection bridge confirms them</li>
+      <li><strong>Deliverable:</strong> AAR report showing "modeled: 90s" vs "actual SIEM: 47s" side by side</li>
+    </ul></div>
+  </div>
+
+  <div class="milestone">
+    <div class="mh">
+      <div class="mn" style="background:rgba(0,212,255,.1);color:var(--accent)">2</div>
+      <div><strong>Full Kill Chain — 3 VMs, AD Domain</strong><br><span style="font-size:12px;color:var(--muted)">~1-2 weeks | Complete attack scenario on real infrastructure</span></div>
+    </div>
+    <div class="mb"><ul>
+      <li><strong>Add DC01</strong> (Windows Server, domain controller) and <strong>WS01</strong> (domain-joined workstation)</li>
+      <li><strong>Wire all 14 techniques</strong> to Atomic Red Team tests</li>
+      <li><strong>Lateral movement:</strong> actual RDP/SMB from WS01 to DC01 via impacket</li>
+      <li><strong>Kerberoasting + DCSync:</strong> real AD attacks against the domain</li>
+      <li><strong>Ransomware sim:</strong> encrypt canary files, verify Wazuh alerts on mass file rename</li>
+      <li><strong>Segmentation test:</strong> verify that network ACLs actually block OT pivot</li>
+    </ul></div>
+  </div>
+
+  <div class="milestone">
+    <div class="mh">
+      <div class="mn" style="background:rgba(139,92,246,.1);color:var(--purple)">3</div>
+      <div><strong>Automated Lab Provisioning</strong><br><span style="font-size:12px;color:var(--muted)">~2-3 weeks | One-click lab deployment per training session</span></div>
+    </div>
+    <div class="mb"><ul>
+      <li><strong>Proxmox + Terraform:</strong> IaC templates for the 3-VM lab</li>
+      <li><strong>Snapshot/revert:</strong> automated cleanup between exercises</li>
+      <li><strong>Launch page integration:</strong> operator clicks "Launch with VMs" and the lab provisions automatically</li>
+      <li><strong>Per-session isolation:</strong> each training session gets its own isolated lab</li>
+      <li><strong>Cloud option:</strong> Terraform module for AWS (3 EC2 instances in a VPC)</li>
+    </ul></div>
+  </div>
+
+  <div class="milestone">
+    <div class="mh">
+      <div class="mn" style="background:rgba(255,112,67,.1);color:var(--orange)">4</div>
+      <div><strong>Production Platform</strong><br><span style="font-size:12px;color:var(--muted)">~1-2 months | Multi-tenant, scalable, client-ready</span></div>
+    </div>
+    <div class="mb"><ul>
+      <li><strong>Multi-tenant:</strong> multiple concurrent labs for different trainees</li>
+      <li><strong>Real EDR integration:</strong> optional CrowdStrike/SentinelOne agents on VMs</li>
+      <li><strong>MITRE Caldera:</strong> agent-based attack orchestration for autonomous red teaming</li>
+      <li><strong>Trainee SIEM access:</strong> give SOC trainees direct access to the Wazuh/Elastic dashboard</li>
+      <li><strong>Background traffic:</strong> realistic user activity on VMs so attacks don't stand out</li>
+    </ul></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="sec">
+  <h2><div class="ico" style="background:rgba(255,71,87,.1);color:var(--red)">&#9888;</div> Tools We Evaluated but Don't Recommend (Yet)</h2>
+
+  <table>
+    <tr><th>Tool</th><th>Why Not Now</th><th>When</th></tr>
+    <tr><td><strong>Splunk Free</strong></td><td>500 MB/day cap, no alerting, no built-in detection rules. Wazuh does everything Splunk Free does, better, with no limits.</td><td><span class="tag skip">SKIP</span></td></tr>
+    <tr><td><strong>MITRE Caldera</strong></td><td>Excellent but more complex (agent deployment, autonomous planner). Overkill for Milestone 1. Add at Milestone 4 for autonomous red teaming.</td><td><span class="tag alt">MILESTONE 4</span></td></tr>
+    <tr><td><strong>Infection Monkey</strong></td><td>Autonomous worm — you can't control exact attack steps. Good for network validation, not scripted training exercises.</td><td><span class="tag alt">NICHE USE</span></td></tr>
+    <tr><td><strong>VMware vSphere</strong></td><td>Expensive licensing. Proxmox does the same thing for free with a cleaner API.</td><td><span class="tag skip">SKIP</span></td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<div class="sec">
+  <h2><div class="ico" style="background:rgba(34,197,94,.1);color:var(--green)">&#10003;</div> What This Means for GoalCert</h2>
+
+  <div class="verdict">
+    <strong>Before (current):</strong> The engine says "LSASS dumped on WS-CEO" as a text string. SIEM detection is modeled with a hardcoded 90-second latency. The report says "Detection rate: 100%." It's a tabletop exercise visualizer.<br><br>
+    <strong>After (with VMs):</strong> Mimikatz actually runs on a real Windows VM. Sysmon captures Event ID 10 (process access to LSASS). Wazuh fires rule 92652 in real time. The report says "Detection rate: 85% — Wazuh missed the cloud persistence technique but caught credential dumping in 47 seconds." <em>That's a real training platform.</em><br><br>
+    <strong>The engine doesn't change.</strong> It gains an optional <code>vm</code> field on each asset and two bridge classes. Every existing scenario, test, report, and feature keeps working. VMs are additive, not a rewrite.<br><br>
+    <strong>Milestone 1 is 3-5 days of work.</strong> One Windows VM, Wazuh in Docker, 3 techniques wired through atomic-operator. That's the proof Prem needs to see.
+  </div>
+</div>
+
+</div>
+<button class="pbtn" onclick="window.print()">&#128424; Print</button>
+</body>
+</html>

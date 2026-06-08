@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GoalCert — VM Integration Setup Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#060910;--card:#0D1320;--surface:#131B2C;--lift:#1C2840;--border:rgba(255,255,255,.06);--text:#ECF0F7;--body:#8B9BB5;--muted:#4E5D73;--accent:#00D4FF;--red:#FF4757;--green:#22C55E;--yellow:#FACC15;--purple:#8B5CF6;--orange:#F97316;--blue:#3B82F6;--teal:#14B8A6;--mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.7;padding:40px 20px}
+.container{max-width:1100px;margin:0 auto}
+h1{font-size:32px;font-weight:800;margin-bottom:8px;background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{color:var(--body);font-size:15px;margin-bottom:40px}
+h2{font-size:22px;font-weight:700;margin:40px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--border);color:var(--accent)}
+h3{font-size:17px;font-weight:600;margin:24px 0 10px;color:var(--text)}
+p,li{color:var(--body);font-size:14px}
+ul,ol{padding-left:24px;margin:8px 0 16px}
+li{margin:4px 0}
+a{color:var(--accent);text-decoration:none}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;margin:16px 0}
+.warn{background:rgba(250,204,21,.06);border-color:rgba(250,204,21,.15);padding:16px 20px;border-radius:8px;margin:12px 0}
+.warn::before{content:"WARNING: ";color:var(--yellow);font-weight:700;font-size:12px}
+.info{background:rgba(0,212,255,.06);border-color:rgba(0,212,255,.15);padding:16px 20px;border-radius:8px;margin:12px 0}
+.info::before{content:"NOTE: ";color:var(--accent);font-weight:700;font-size:12px}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;margin:12px 0;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--text)}
+code{font-family:var(--mono);font-size:12.5px;background:var(--surface);padding:2px 6px;border-radius:4px}
+.diagram{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;margin:20px 0;font-family:var(--mono);font-size:12px;line-height:1.5;white-space:pre;overflow-x:auto;color:var(--body)}
+.diagram .highlight{color:var(--accent);font-weight:600}
+.diagram .red{color:var(--red)}
+.diagram .green{color:var(--green)}
+.diagram .yellow{color:var(--yellow)}
+.diagram .purple{color:var(--purple)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.grid-2{grid-template-columns:1fr}}
+.step{display:flex;gap:16px;margin:16px 0;align-items:flex-start}
+.step-num{background:var(--accent);color:var(--bg);font-weight:700;font-size:13px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.step-content{flex:1}
+.step-content p{margin:4px 0}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th{text-align:left;padding:10px 12px;background:var(--surface);color:var(--text);font-weight:600;border-bottom:1px solid var(--border)}
+td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--body)}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;margin:0 4px}
+.tag-green{background:rgba(34,197,94,.12);color:var(--green)}
+.tag-red{background:rgba(255,71,87,.12);color:var(--red)}
+.tag-yellow{background:rgba(250,204,21,.12);color:var(--yellow)}
+.tag-blue{background:rgba(59,130,246,.12);color:var(--blue)}
+.tag-purple{background:rgba(139,92,246,.12);color:var(--purple)}
+.checklist{list-style:none;padding-left:0}
+.checklist li{padding:6px 0 6px 28px;position:relative}
+.checklist li::before{content:"[ ]";position:absolute;left:0;font-family:var(--mono);color:var(--muted);font-size:12px}
+.toc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin:20px 0}
+.toc a{display:block;padding:4px 0;color:var(--body);font-size:13px}
+.toc a:hover{color:var(--accent)}
+.print-btn{position:fixed;bottom:20px;right:20px;background:var(--accent);color:var(--bg);border:none;padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;font-family:var(--sans);z-index:100}
+@media print{.print-btn{display:none}body{background:#fff;color:#111}h1{-webkit-text-fill-color:#111}h2{color:#111;border-color:#ddd}.card,.diagram{background:#f8f8f8;border-color:#ddd}pre{background:#f0f0f0;border-color:#ddd}p,li,td{color:#333}th{background:#eee;color:#111}.toc{background:#f8f8f8}}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>GoalCert VM Integration — Complete Setup Guide</h1>
+<p class="subtitle">From zero to real attacks on real VMs. Infrastructure, configuration, and verification.</p>
+
+<button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+
+<div class="toc">
+<strong style="color:var(--text);font-size:14px">Contents</strong>
+<a href="#arch">1. Architecture Overview</a>
+<a href="#network">2. Network Diagram</a>
+<a href="#dataflow">3. Data Flow — Attack Execution</a>
+<a href="#prereqs">4. Prerequisites Checklist</a>
+<a href="#wazuh">5. Step 1: Deploy Wazuh SIEM (Docker)</a>
+<a href="#vms">6. Step 2: Provision Windows VMs</a>
+<a href="#sysmon">7. Step 3: Install Sysmon + Wazuh Agent</a>
+<a href="#atomic">8. Step 4: Install Atomic Red Team</a>
+<a href="#bridge">9. Step 5: Configure the Bridge</a>
+<a href="#verify">10. Step 6: Verify End-to-End</a>
+<a href="#techniques">11. Technique Mapping Reference</a>
+<a href="#troubleshoot">12. Troubleshooting</a>
+</div>
+
+<!-- ============ ARCHITECTURE ============ -->
+<h2 id="arch">1. Architecture Overview</h2>
+
+<div class="diagram">
+<span class="highlight">GoalCert Simulation Engine (Your Mac)</span>
+<span class="highlight">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    <span class="highlight">FastAPI Backend</span>                         │
+  │                                                             │
+  │  ┌──────────┐   ┌───────────────┐   ┌──────────────────┐   │
+  │  │ <span class="purple">Scenario</span>  │──▶│ <span class="purple">Engine (run.py)</span> │──▶│ <span class="purple">Report Generator</span> │   │
+  │  │ <span class="purple">Builder</span>   │   │               │   │                  │   │
+  │  └──────────┘   │  ┌─────────┐  │   └──────────────────┘   │
+  │                 │  │ <span class="highlight">Bridge</span>  │  │                           │
+  │                 │  │ <span class="highlight">Layer</span>   │  │   ┌──────────────────┐   │
+  │                 │  └────┬────┘  │   │ <span class="green">VM Execution</span>      │   │
+  │                 └───────┼───────┘   │ <span class="green">Report Section</span>    │   │
+  │                         │           └──────────────────┘   │
+  └─────────────────────────┼──────────────────────────────────┘
+                            │
+              ┌─────────────┼─────────────┐
+              │             │             │
+              ▼             ▼             ▼
+  ┌───────────────┐ ┌──────────────┐ ┌──────────────┐
+  │ <span class="red">Atomic Red</span>     │ │ <span class="red">Atomic Red</span>    │ │ <span class="green">Wazuh SIEM</span>    │
+  │ <span class="red">Team (WinRM)</span>   │ │ <span class="red">Team (WinRM)</span>  │ │ <span class="green">(Docker)</span>      │
+  │               │ │              │ │              │
+  │  <span class="yellow">DC01</span>         │ │  <span class="yellow">WS01</span>        │ │  Dashboard   │
+  │  Win Srv 2019 │ │  Win 10      │ │  Indexer     │
+  │  AD Domain    │ │  Workstation │ │  Manager     │
+  │  Controller   │ │              │ │              │
+  └───────────────┘ └──────────────┘ └──────────────┘
+    192.168.56.10     192.168.56.20     192.168.56.30
+</div>
+
+<div class="card">
+<h3>How it works (simple version)</h3>
+<ol>
+<li>Engine runs the scenario as normal (deterministic model)</li>
+<li>When an attack step succeeds on a modeled asset that has a VM binding, the <strong>Execution Bridge</strong> fires the same technique on the real VM using Atomic Red Team</li>
+<li>The <strong>Detection Bridge</strong> then queries Wazuh to check if the SIEM actually detected the attack</li>
+<li>The report shows <strong>modeled vs actual</strong> results side by side — "Model says detected in 90s, SIEM actually detected in 47s"</li>
+</ol>
+</div>
+
+<!-- ============ NETWORK ============ -->
+<h2 id="network">2. Network Diagram</h2>
+
+<div class="diagram">
+<span class="highlight">Host Machine (Your Mac)</span>
+  │
+  ├── <span class="highlight">GoalCert Backend</span>  :8000  (FastAPI + Bridge)
+  ├── <span class="highlight">GoalCert Frontend</span> :5173  (React + Vite)
+  │
+  ├── <span class="green">Docker Network</span> (goalcert-wazuh)
+  │   ├── <span class="green">wazuh.manager</span>     :1514 (agent registration)
+  │   ├── <span class="green">wazuh.manager</span>     :55000 (API)
+  │   ├── <span class="green">wazuh.indexer</span>     :9200 (OpenSearch — Bridge queries this)
+  │   └── <span class="green">wazuh.dashboard</span>   :5601 (Web UI)
+  │
+  └── <span class="yellow">VirtualBox Host-Only Network</span> (vboxnet0: 192.168.56.0/24)
+      ├── <span class="red">DC01</span>   192.168.56.10  (WinRM :5985, Wazuh Agent → manager:1514)
+      ├── <span class="red">WS01</span>   192.168.56.20  (WinRM :5985, Wazuh Agent → manager:1514)
+      └── <span class="green">WAZUH</span>  192.168.56.30  (forwarded from Docker)
+
+<span class="highlight">Firewall Rules:</span>
+  Mac → DC01/WS01:  TCP 5985 (WinRM HTTP) or 5986 (WinRM HTTPS)
+  DC01/WS01 → Wazuh: TCP 1514 (agent enrollment)
+  Mac → Wazuh:      TCP 9200 (indexer API), 5601 (dashboard)
+</div>
+
+<!-- ============ DATA FLOW ============ -->
+<h2 id="dataflow">3. Data Flow — Attack Execution</h2>
+
+<div class="diagram">
+  <span class="highlight">Engine decides: T1003.001 (LSASS Dump) on DC01</span>
+
+  ┌─────────┐     ┌──────────────┐     ┌──────────┐     ┌──────────┐
+  │ <span class="purple">run.py</span>   │────▶│ <span class="highlight">atomic.py</span>     │────▶│ <span class="red">DC01 VM</span>   │────▶│ <span class="green">Wazuh</span>    │
+  │         │     │ (Exec Bridge)│     │ (WinRM)  │     │ (SIEM)   │
+  └─────────┘     └──────────────┘     └──────────┘     └──────────┘
+       │                │                    │                │
+       │           1. Lookup MITRE      3. PowerShell    5. Sysmon logs
+       │              T1003.001            runs:            forwarded
+       │                │               Invoke-Atomic       to Wazuh
+       │           2. Build WinRM          RedTeam          Agent
+       │              command               │                │
+       │                │              4. Mimikatz       6. Wazuh
+       │                │                 executes         indexes
+       │                │                 on LSASS         alert
+       │                │                    │                │
+       │                └────────────────────┘                │
+       │                                                      │
+       │         ┌──────────────┐                             │
+       │         │ <span class="green">wazuh.py</span>      │◀────────────────────────────┘
+       │         │ (Det. Bridge) │     7. Query OpenSearch:
+       │         └──────┬───────┘        "rule.mitre.id: T1003.001
+       │                │                 AND agent.name: DC01
+       │                │                 AND timestamp > now-60s"
+       │                │
+       │           8. Returns:
+       │              DetectionResult(
+       │                detected=True,
+       │                latency_s=47.2,
+       │                alert_ids=["abc123"],
+       │                siem_rule="Sysmon 10: LSASS Access"
+       │              )
+       │                │
+       ▼                ▼
+  ┌──────────────────────────────┐
+  │ <span class="purple">Report: VM Execution Section</span>   │
+  │                              │
+  │  T1003.001 LSASS Dump        │
+  │  Target: DC01 (192.168.56.10)│
+  │  Model: <span class="green">success</span> (90s detect)  │
+  │  VM:    <span class="green">executed</span> (real)       │
+  │  SIEM:  <span class="green">detected</span> (47.2s)     │
+  │  Delta: <span class="yellow">-42.8s faster</span>        │
+  └──────────────────────────────┘
+</div>
+
+<!-- ============ PREREQS ============ -->
+<h2 id="prereqs">4. Prerequisites Checklist</h2>
+
+<div class="card">
+<ul class="checklist">
+<li>Docker Desktop installed and running (you have this)</li>
+<li>Docker Desktop allocated at least <strong>4GB RAM</strong> (currently 2GB — need to increase)</li>
+<li>VirtualBox 7+ installed (<code>brew install --cask virtualbox</code>)</li>
+<li>Vagrant 2.4+ installed (<code>brew install --cask vagrant</code>)</li>
+<li>Windows Server 2019 Vagrant box (or Windows 10 evaluation ISO)</li>
+<li>~50GB free disk space (Windows VMs are large)</li>
+<li>Python packages: <code>pip3 install pywinrm requests</code></li>
+</ul>
+</div>
+
+<div class="warn">
+<p style="color:var(--yellow)">Your Docker Desktop only has 2GB RAM allocated. Wazuh needs at least 4GB. Go to Docker Desktop → Settings → Resources → Memory → set to 4GB minimum (6GB recommended). Restart Docker after changing.</p>
+</div>
+
+<!-- ============ WAZUH SETUP ============ -->
+<h2 id="wazuh">5. Step 1: Deploy Wazuh SIEM (Docker)</h2>
+
+<div class="step">
+<div class="step-num">1</div>
+<div class="step-content">
+<p><strong>Increase Docker memory to 4GB+</strong></p>
+<p>Docker Desktop → Settings → Resources → Memory → 4096 MB → Apply & Restart</p>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">2</div>
+<div class="step-content">
+<p><strong>Start Wazuh stack</strong></p>
+<pre>cd ~/Downloads/Goalcert_Simulation_Engine-main/Goalcert_Simulation_Engine-main/infrastructure
+docker compose -f docker-compose.wazuh.yml up -d</pre>
+<p>Wait 2-3 minutes for all services to initialize.</p>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">3</div>
+<div class="step-content">
+<p><strong>Verify Wazuh is running</strong></p>
+<pre># Check all 3 containers are healthy
+docker compose -f docker-compose.wazuh.yml ps
+
+# Test the Indexer API (what the bridge queries)
+curl -k -u admin:SecretPassword https://localhost:9200/_cluster/health?pretty
+
+# Open the Dashboard
+open https://localhost:5601
+# Login: admin / SecretPassword</pre>
+</div>
+</div>
+
+<div class="info">
+<p>The Wazuh Dashboard at https://localhost:5601 is what you show Prem. It's a real SIEM showing real alerts from real VMs. The bridge queries the Indexer API at :9200 programmatically.</p>
+</div>
+
+<!-- ============ WINDOWS VMS ============ -->
+<h2 id="vms">6. Step 2: Provision Windows VMs</h2>
+
+<h3>Option A: Vagrant (automated, recommended)</h3>
+
+<div class="step">
+<div class="step-num">1</div>
+<div class="step-content">
+<p><strong>Install VirtualBox and Vagrant</strong></p>
+<pre>brew install --cask virtualbox vagrant</pre>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">2</div>
+<div class="step-content">
+<p><strong>Download Windows box</strong></p>
+<pre># Microsoft provides free evaluation Windows boxes
+vagrant box add gusztavvargadr/windows-server-2019-standard</pre>
+<p>This downloads a ~6GB Windows Server image. Takes a while.</p>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">3</div>
+<div class="step-content">
+<p><strong>Bring up VMs</strong></p>
+<pre>cd ~/Downloads/Goalcert_Simulation_Engine-main/Goalcert_Simulation_Engine-main/infrastructure
+
+# Start DC01 first (it sets up Active Directory)
+vagrant up dc01
+
+# Then WS01 (joins the domain)
+vagrant up ws01</pre>
+<p>Each VM takes 10-15 minutes to provision (AD setup, WinRM, Sysmon).</p>
+</div>
+</div>
+
+<h3>Option B: Manual VM setup</h3>
+<p>If Vagrant doesn't work (Apple Silicon Macs can't run x86 VirtualBox VMs), use UTM or VMware Fusion:</p>
+
+<div class="card">
+<ol>
+<li>Download Windows Server 2019 evaluation ISO from Microsoft</li>
+<li>Create a VM in UTM/VMware with 4GB RAM, 40GB disk</li>
+<li>Install Windows, set IP to 192.168.56.10</li>
+<li>Enable WinRM:
+<pre>winrm quickconfig -force
+winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+winrm set winrm/config/service/auth '@{Basic="true"}'
+Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value true</pre>
+</li>
+<li>Set firewall rule: <code>netsh advfirewall firewall add rule name="WinRM" dir=in action=allow protocol=TCP localport=5985</code></li>
+</ol>
+</div>
+
+<div class="warn">
+<p style="color:var(--yellow)">Apple Silicon Macs (M1/M2/M3) cannot run x86 Windows VMs in VirtualBox. Use UTM (free, ARM-based) or VMware Fusion (free for personal use). The Vagrantfile won't work on Apple Silicon — use Option B.</p>
+</div>
+
+<!-- ============ SYSMON + AGENT ============ -->
+<h2 id="sysmon">7. Step 3: Install Sysmon + Wazuh Agent</h2>
+
+<p>Run these on each Windows VM (DC01 and WS01):</p>
+
+<div class="step">
+<div class="step-num">1</div>
+<div class="step-content">
+<p><strong>Install Sysmon (generates the attack telemetry)</strong></p>
+<pre># On the Windows VM (PowerShell as Admin):
+# Download Sysmon
+Invoke-WebRequest -Uri "https://download.sysinternals.com/files/Sysmon.zip" -OutFile C:\Sysmon.zip
+Expand-Archive C:\Sysmon.zip -DestinationPath C:\Sysmon
+
+# Download SwiftOnSecurity config (best detection coverage)
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/SwiftOnSecurity/sysmon-config/master/sysmonconfig-export.xml" -OutFile C:\Sysmon\sysmonconfig.xml
+
+# Install Sysmon with config
+C:\Sysmon\Sysmon64.exe -accepteula -i C:\Sysmon\sysmonconfig.xml</pre>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">2</div>
+<div class="step-content">
+<p><strong>Install Wazuh Agent (forwards logs to SIEM)</strong></p>
+<pre># On the Windows VM (PowerShell as Admin):
+# Use the script from infrastructure/
+.\install-wazuh-agent.ps1 -WazuhServer "192.168.56.30"
+
+# OR manually:
+Invoke-WebRequest -Uri "https://packages.wazuh.com/4.x/windows/wazuh-agent-4.9.0-1.msi" -OutFile wazuh-agent.msi
+msiexec /i wazuh-agent.msi /q WAZUH_MANAGER="192.168.56.30" WAZUH_AGENT_NAME="DC01"
+net start WazuhSvc</pre>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">3</div>
+<div class="step-content">
+<p><strong>Verify agent connects to Wazuh Manager</strong></p>
+<pre># From your Mac:
+curl -k -u wazuh-wui:MyS3cr37P450r.*- https://localhost:55000/agents?pretty
+
+# Should show DC01 and WS01 as "active"</pre>
+</div>
+</div>
+
+<!-- ============ ATOMIC RED TEAM ============ -->
+<h2 id="atomic">8. Step 4: Install Atomic Red Team</h2>
+
+<p>Run on each Windows VM:</p>
+
+<pre># PowerShell as Administrator on the VM:
+
+# Allow script execution
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser -Force
+
+# Install Atomic Red Team
+IEX (IWR 'https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/install-atomicredteam.ps1' -UseBasicParsing)
+Install-AtomicRedTeam -getAtomics -Force
+
+# Verify it works (dry run)
+Invoke-AtomicTest T1003.001 -ShowDetailsBrief</pre>
+
+<div class="info">
+<p>Atomic Red Team is a library of ~1,500 test scripts that safely execute real MITRE ATT&CK techniques. Each test has a unique GUID. The bridge maps engine technique keys to specific test GUIDs.</p>
+</div>
+
+<!-- ============ BRIDGE CONFIG ============ -->
+<h2 id="bridge">9. Step 5: Configure the Bridge</h2>
+
+<div class="step">
+<div class="step-num">1</div>
+<div class="step-content">
+<p><strong>Install Python dependencies</strong></p>
+<pre>pip3 install --break-system-packages pywinrm requests</pre>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">2</div>
+<div class="step-content">
+<p><strong>Create bridge config</strong></p>
+<pre>cd ~/Downloads/Goalcert_Simulation_Engine-main/Goalcert_Simulation_Engine-main/infrastructure
+cp bridge-config.example.json bridge-config.json
+
+# Edit bridge-config.json with your actual VM IPs and credentials</pre>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">3</div>
+<div class="step-content">
+<p><strong>Register bridges at startup</strong></p>
+<p>Add to <code>backend/app/main.py</code> (after init_db):</p>
+<pre>import json, os
+config_path = os.path.join(os.path.dirname(__file__), "../../infrastructure/bridge-config.json")
+if os.path.exists(config_path):
+    from app.engine.bridge.atomic import AtomicExecutionBridge
+    from app.engine.bridge.wazuh import WazuhDetectionBridge
+    from app.engine.bridge.registry import register_bridges
+    cfg = json.load(open(config_path))
+    register_bridges(
+        execution=AtomicExecutionBridge(),
+        detection=WazuhDetectionBridge(
+            indexer_url=cfg["wazuh"]["indexer_url"],
+            username=cfg["wazuh"]["username"],
+            password=cfg["wazuh"]["password"],
+        ),
+    )</pre>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">4</div>
+<div class="step-content">
+<p><strong>Add VM bindings to scenario assets</strong></p>
+<p>In the Launch page or scenario JSON, add <code>vm</code> to assets:</p>
+<pre>{
+  "id": "dc01",
+  "type": "server",
+  "label": "Domain Controller",
+  "vm": {
+    "host": "192.168.56.10",
+    "port": 5985,
+    "protocol": "winrm",
+    "username": "Administrator",
+    "password": "VagrantP@ss1"
+  }
+}</pre>
+</div>
+</div>
+
+<!-- ============ VERIFY ============ -->
+<h2 id="verify">10. Step 6: Verify End-to-End</h2>
+
+<div class="step">
+<div class="step-num">1</div>
+<div class="step-content">
+<p><strong>Test WinRM connectivity from Mac</strong></p>
+<pre>python3 -c "
+import winrm
+s = winrm.Session('http://192.168.56.10:5985/wsman',
+    auth=('Administrator', 'VagrantP@ss1'),
+    transport='basic')
+r = s.run_cmd('hostname')
+print(f'Connected to: {r.std_out.decode().strip()}')
+"</pre>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">2</div>
+<div class="step-content">
+<p><strong>Test Atomic Red Team execution remotely</strong></p>
+<pre>python3 -c "
+import winrm
+s = winrm.Session('http://192.168.56.10:5985/wsman',
+    auth=('Administrator', 'VagrantP@ss1'),
+    transport='basic')
+r = s.run_ps('Invoke-AtomicTest T1053.005 -TestNumbers 1 -Confirm:\$false')
+print(r.std_out.decode()[:500])
+print('Exit code:', r.status_code)
+"</pre>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">3</div>
+<div class="step-content">
+<p><strong>Test Wazuh detection query</strong></p>
+<pre>python3 -c "
+import json, requests, urllib3
+urllib3.disable_warnings()
+r = requests.get('https://localhost:9200/wazuh-alerts-*/_search',
+    auth=('admin', 'SecretPassword'),
+    verify=False,
+    json={'query': {'bool': {'must': [
+        {'match': {'rule.mitre.id': 'T1053.005'}},
+        {'range': {'timestamp': {'gte': 'now-5m'}}}
+    ]}}, 'size': 3})
+data = r.json()
+hits = data.get('hits', {}).get('total', {}).get('value', 0)
+print(f'Alerts found: {hits}')
+for h in data.get('hits', {}).get('hits', [])[:3]:
+    s = h['_source']
+    print(f'  Rule: {s.get(\"rule\", {}).get(\"description\", \"\")}')
+"</pre>
+</div>
+</div>
+
+<div class="step">
+<div class="step-num">4</div>
+<div class="step-content">
+<p><strong>Test bridge API</strong></p>
+<pre># Start the backend
+cd ~/Downloads/Goalcert_Simulation_Engine-main/Goalcert_Simulation_Engine-main/backend
+python3 -m uvicorn app.main:app --port 8000
+
+# Check bridge status
+curl -s http://localhost:8000/api/bridge/status | python3 -m json.tool
+# Should show: "vm_enabled": true, "techniques_mapped": 14
+
+# List mapped techniques
+curl -s http://localhost:8000/api/bridge/techniques | python3 -m json.tool</pre>
+</div>
+</div>
+
+<!-- ============ TECHNIQUE MAP ============ -->
+<h2 id="techniques">11. Technique Mapping Reference</h2>
+
+<table>
+<thead><tr><th>Engine Key</th><th>MITRE ID</th><th>Atomic Test</th><th>What it does on the VM</th><th>Admin?</th></tr></thead>
+<tbody>
+<tr><td><code>phishing</code></td><td>T1566.001</td><td>Macro payload</td><td>Downloads + executes HTA via mshta.exe</td><td>No</td></tr>
+<tr><td><code>exploit_public</code></td><td>T1190</td><td>Scheduled task</td><td>Creates a scheduled task (simulates exploit callback)</td><td>Yes</td></tr>
+<tr><td><code>lsass_dump</code></td><td>T1003.001</td><td>Mimikatz via rundll32</td><td>Dumps LSASS process memory using comsvcs.dll</td><td>Yes</td></tr>
+<tr><td><code>kerberoast</code></td><td>T1558.003</td><td>Rubeus kerberoast</td><td>Requests TGS tickets for SPNs (offline cracking)</td><td>No</td></tr>
+<tr><td><code>dcsync</code></td><td>T1003.006</td><td>Mimikatz DCSync</td><td>Replicates AD hashes via DRSUAPI (domain admin)</td><td>Yes</td></tr>
+<tr><td><code>lateral_wmi</code></td><td>T1047</td><td>WMI process create</td><td>Spawns process on remote host via WMI</td><td>Yes</td></tr>
+<tr><td><code>lateral_psexec</code></td><td>T1569.002</td><td>PsExec service</td><td>Creates + starts remote service via SMB</td><td>Yes</td></tr>
+<tr><td><code>lateral_rdp</code></td><td>T1021.001</td><td>RDP enable</td><td>Enables RDP via registry + firewall rule</td><td>Yes</td></tr>
+<tr><td><code>persist_task</code></td><td>T1053.005</td><td>Scheduled task</td><td>Creates persistent scheduled task</td><td>Yes</td></tr>
+<tr><td><code>persist_reg</code></td><td>T1547.001</td><td>Registry Run key</td><td>Adds HKCU\...\Run entry for persistence</td><td>No</td></tr>
+<tr><td><code>exfil_http</code></td><td>T1048.003</td><td>curl exfil</td><td>Exfiltrates test data via HTTP POST</td><td>No</td></tr>
+<tr><td><code>ransomware</code></td><td>T1486</td><td>File encryption</td><td>Encrypts test files in C:\AtomicTest (reversible)</td><td>No</td></tr>
+<tr><td><code>defense_evasion</code></td><td>T1562.001</td><td>Disable AV</td><td>Disables Windows Defender real-time monitoring</td><td>Yes</td></tr>
+<tr><td><code>discovery_ad</code></td><td>T1087.002</td><td>net user /domain</td><td>Enumerates domain users via net.exe</td><td>No</td></tr>
+</tbody>
+</table>
+
+<!-- ============ TROUBLESHOOT ============ -->
+<h2 id="troubleshoot">12. Troubleshooting</h2>
+
+<div class="card">
+<h3>WinRM connection refused</h3>
+<pre># On the Windows VM:
+winrm quickconfig -force
+winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+winrm set winrm/config/service/auth '@{Basic="true"}'
+
+# Check firewall
+netsh advfirewall firewall show rule name="WinRM"</pre>
+</div>
+
+<div class="card">
+<h3>Wazuh agent not connecting</h3>
+<pre># On the VM, check agent status:
+Get-Service WazuhSvc
+# Check agent log:
+Get-Content "C:\Program Files (x86)\ossec-agent\ossec.log" -Tail 20
+
+# From Mac, check registered agents:
+curl -k -u wazuh-wui:MyS3cr37P450r.*- https://localhost:55000/agents?pretty</pre>
+</div>
+
+<div class="card">
+<h3>No alerts in Wazuh after attack</h3>
+<pre># Check Sysmon is generating events:
+wevtutil qe "Microsoft-Windows-Sysmon/Operational" /c:5 /f:text
+
+# Check Wazuh agent is forwarding:
+Get-Content "C:\Program Files (x86)\ossec-agent\ossec.log" -Tail 10
+
+# Check Wazuh indexer has data:
+curl -k -u admin:SecretPassword "https://localhost:9200/wazuh-alerts-*/_count"</pre>
+</div>
+
+<div class="card">
+<h3>Atomic Red Team not installed</h3>
+<pre># Re-install:
+IEX (IWR 'https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/install-atomicredteam.ps1' -UseBasicParsing)
+Install-AtomicRedTeam -getAtomics -Force
+
+# Verify:
+Get-Module -ListAvailable Invoke-AtomicRedTeam</pre>
+</div>
+
+<div class="card">
+<h3>Apple Silicon (M1/M2/M3) — can't run x86 VMs</h3>
+<p>VirtualBox doesn't support ARM. Options:</p>
+<ul>
+<li><strong>UTM</strong> (free) — runs ARM Windows, most Atomic tests work</li>
+<li><strong>VMware Fusion</strong> (free personal) — better Windows ARM support</li>
+<li><strong>AWS/Azure</strong> — spin up real x86 Windows VMs in the cloud ($0.10/hr)</li>
+<li><strong>Proxmox on a mini PC</strong> — cheapest production option ($200 one-time)</li>
+</ul>
+</div>
+
+</div>
+</body>
+</html>
