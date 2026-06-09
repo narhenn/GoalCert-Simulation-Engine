@@ -14,6 +14,7 @@ Requirements:
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import time
 from dataclasses import dataclass
@@ -76,12 +77,8 @@ class CalderaExecutionBridge(ExecutionBridge):
 
     # --- ExecutionBridge interface ---
 
-    async def execute(
-        self,
-        spec: TechniqueSpec,
-        target: AssetInstance,
-        vm: VMBinding,
-    ) -> ExecutionResult:
+    def _execute_sync(self, spec: TechniqueSpec, vm: VMBinding) -> ExecutionResult:
+        """Synchronous execution — called via asyncio.to_thread from execute()."""
         if requests is None:
             return ExecutionResult(
                 success=False, technique_key=spec.key,
@@ -171,6 +168,15 @@ class CalderaExecutionBridge(ExecutionBridge):
                 success=False, technique_key=spec.key, mitre_id=mitre_id,
                 error=f"Caldera API error: {exc}",
             )
+
+    async def execute(
+        self,
+        spec: TechniqueSpec,
+        target: AssetInstance,
+        vm: VMBinding,
+    ) -> ExecutionResult:
+        """Async wrapper — runs blocking Caldera calls in a thread."""
+        return await asyncio.to_thread(self._execute_sync, spec, vm)
 
     async def health_check(self, vm: VMBinding) -> bool:
         if requests is None:

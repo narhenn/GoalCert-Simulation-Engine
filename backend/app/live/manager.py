@@ -157,6 +157,8 @@ class LiveManager:
             lab = get_pool().get(session_id) or get_lab()
         except Exception:
             return
+        if lab is None:
+            return
         for job in jobs:
             try:
                 result = await asyncio.to_thread(lf.run_job, lab, job["action_id"])

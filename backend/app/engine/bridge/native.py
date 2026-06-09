@@ -10,6 +10,7 @@ Requirements:
 """
 from __future__ import annotations
 
+import shlex
 import shutil
 import subprocess
 import sys
@@ -95,17 +96,18 @@ class NativeExecutionBridge(ExecutionBridge):
             )
 
         domain = vm.credential_ref or "WORKGROUP"
+        # Sanitize all user-supplied values to prevent shell injection
         command = mapping["command"].format(
-            host=vm.host,
-            user=vm.username,
-            password=vm.password,
-            domain=domain,
+            host=shlex.quote(vm.host),
+            user=shlex.quote(vm.username),
+            password=shlex.quote(vm.password),
+            domain=shlex.quote(domain),
         )
 
         start = time.time()
         try:
             result = subprocess.run(
-                command, shell=True,
+                shlex.split(command),
                 capture_output=True, text=True, timeout=120,
             )
             duration_ms = int((time.time() - start) * 1000)
