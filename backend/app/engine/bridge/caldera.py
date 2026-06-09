@@ -18,7 +18,10 @@ import base64
 import time
 from dataclasses import dataclass
 
-import requests
+try:  # optional dep — the Caldera bridge is only used when an operator wires it up
+    import requests
+except ImportError:  # pragma: no cover - keeps the whole app importable without it
+    requests = None  # type: ignore[assignment]
 
 from ..catalog.spec import TechniqueSpec
 from ..world import AssetInstance
@@ -79,6 +82,11 @@ class CalderaExecutionBridge(ExecutionBridge):
         target: AssetInstance,
         vm: VMBinding,
     ) -> ExecutionResult:
+        if requests is None:
+            return ExecutionResult(
+                success=False, technique_key=spec.key,
+                error="Caldera bridge requires the 'requests' package (pip install requests)",
+            )
         mitre_id = TECHNIQUE_MITRE.get(spec.key, spec.mitre)
         if not mitre_id:
             return ExecutionResult(
@@ -165,6 +173,8 @@ class CalderaExecutionBridge(ExecutionBridge):
             )
 
     async def health_check(self, vm: VMBinding) -> bool:
+        if requests is None:
+            return False
         try:
             resp = requests.get(
                 f"{self._base}/api/v2/health",

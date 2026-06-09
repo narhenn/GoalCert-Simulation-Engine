@@ -1,0 +1,40 @@
+# GoalCert live-fire attacker box — real Kali Linux with the integrated free tools.
+# Built once by scripts/lab-setup; runs idle (`sleep infinity`) and the engine drives it via
+# `docker exec gc-attacker <tool ...>`.
+#
+# Integrated tooling (1 per function, all free / open-source):
+#   nmap     — network recon & service discovery
+#   nikto    — web vulnerability scanning
+#   impacket — Active Directory credential attacks (used in the Phase-2 Windows lab)
+#   netexec  — SMB / AD enumeration & credential testing (nxc)
+FROM kalilinux/kali-rolling
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        nmap \
+        nikto \
+        python3-impacket \
+        python3-pip \
+        pipx \
+        curl \
+        iproute2 \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# NetExec (nxc) — the maintained CrackMapExec successor. Prefer the distro package; fall back to pipx.
+RUN apt-get update \
+    && (apt-get install -y --no-install-recommends netexec \
+        || (PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install netexec)) \
+    && rm -rf /var/lib/apt/lists/* || true
+
+# ttyd — serves an interactive shell over HTTP so a human can drive this real Kali box from a browser.
+RUN curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 \
+        -o /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd
+
+# Quick self-check at build time so a broken image fails the build, not the demo.
+RUN command -v nmap && command -v nikto && command -v impacket-secretsdump && command -v ttyd
+
+EXPOSE 7681
+# Keep the container alive AND serve a real, writable Kali shell in the browser on :7681.
+CMD ["ttyd", "-p", "7681", "-W", "-t", "fontSize=14", "-t", "titleFixed=GoalCert Kali (attacker)", "bash"]

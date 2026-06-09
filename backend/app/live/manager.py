@@ -134,6 +134,38 @@ class LiveManager:
         if session is not None:
             await self.broadcast(session_id, session.snapshot())
 
+    # ---- live-fire (real tools) ----------------------------------------------
+    async def run_live_fire(self, session_id: str) -> None:
+        """Execute any queued real-tool jobs off the event loop, streaming each result back.
+
+        The subprocess work (`docker exec` into Kali) runs in a worker thread so the WS loop and
+        the auto-driver ticker stay responsive. Each finished job is attached to its action event
+        and broadcast immediately, so the operator watches real output land step by step.
+        """
+        session = self.get(session_id)
+        if session is None or not session.live_fire:
+            return
+        with self.lock(session_id):
+            jobs = session.drain_pending_fire()
+        if not jobs:
+            return
+        from app.lab import live_fire as lf
+        from app.lab.manager import get_lab
+        from app.lab.pool import get_pool
+        try:
+            # prefer this session's own isolated range (Phase 3); fall back to the shared lab
+            lab = get_pool().get(session_id) or get_lab()
+        except Exception:
+            return
+        for job in jobs:
+            try:
+                result = await asyncio.to_thread(lf.run_job, lab, job["action_id"])
+            except Exception as exc:  # a tool failure must never break the match
+                result = {"status": "error", "success": False, "output": str(exc)[:500]}
+            with self.lock(session_id):
+                session.apply_fire_result(job["seq"], result)
+            await self.broadcast_snapshot(session_id)
+
     # ---- auto-driver ticker --------------------------------------------------
     def ensure_ticker(self, session_id: str) -> None:
         """Start the auto-driver loop for a session if one isn't already running."""
@@ -158,6 +190,8 @@ class LiveManager:
                     changed = auto.tick(session)
                 if changed:
                     await self.broadcast_snapshot(session_id)
+                    if session.live_fire and session.pending_fire:
+                        await self.run_live_fire(session_id)
                     if session.status == "completed":
                         self._try_persist(session)
                         break

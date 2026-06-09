@@ -36,14 +36,14 @@ A legend used throughout:
 | **FOFA / ZoomEye** | `FREEMIUM` | Chinese-origin internet-asset search engines (notably used by some APTs for edge-device discovery) |
 | **crt.sh / Certificate Transparency** | `OSS` | Discover subdomains/infrastructure via public TLS certificate logs |
 | **Amass** | `OSS` | In-depth DNS/subdomain enumeration and attack-surface mapping (OWASP) |
-| **Google Dorking** | technique | Advanced search-operator queries to surface exposed info |
+| **Google Dorking** | technique | Advanced search-operator queries to surface exposed info |----
 | **LinkedIn / job postings / public filings** | data sources | Org structure, tech stack, personnel intelligence (ORGINT/HUMINT) |
 
 ## 1.2 Scanning, enumeration & attack-surface mapping (active)
 
 | Tool | Type | Operational purpose |
 |---|---|---|
-| **Nmap** | `OSS` | The canonical network/port/service scanner and host discovery tool |
+| **Nmap** | `OSS` | The canonical network/port/service scanner and host discovery tool |------
 | **Masscan** | `OSS` | Extremely fast internet-scale port scanner |
 | **RustScan** | `OSS` | Fast port scanner that feeds Nmap |
 | **Nuclei** | `OSS` | Template-based vulnerability/misconfiguration scanner at scale |

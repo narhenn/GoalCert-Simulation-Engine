@@ -1,7 +1,7 @@
 import type {
   AssetType, ControlType, TechniqueType, ScenarioSummary, Topology,
   RunConfig, RunSummary, SimEvent, ReportContent, Dashboard, RoleInfo, WorkflowDef,
-  LiveSessionSummary, LiveMission,
+  LiveSessionSummary, LiveMission, LabStatus, LabToolRegistry,
 } from "./types";
 
 async function get<T>(url: string): Promise<T> {
@@ -48,4 +48,10 @@ export const api = {
     post<{ session_id: string; player_id: string; scenario_name: string; status: string }>("/api/live/sessions", body),
   joinLiveSession: (id: string, body: { name: string }) =>
     post<{ session_id: string; player_id: string; scenario_name: string; status: string }>(`/api/live/sessions/${id}/join`, body),
+
+  // ---- Live-fire lab (real VMs + real tools) ----
+  labStatus: () => get<LabStatus>("/api/lab/status"),
+  labTools: () => get<LabToolRegistry>("/api/lab/tools"),
+  labUp: () => post<{ ok: boolean; detail: string; command: string }>("/api/lab/up", {}),
+  labDown: () => post<{ ok: boolean; detail: string; command: string }>("/api/lab/down", {}),
 };

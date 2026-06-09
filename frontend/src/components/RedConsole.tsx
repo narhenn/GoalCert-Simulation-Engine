@@ -17,6 +17,42 @@ function noiseColor(noise: number) {
   return noise >= 9 ? "var(--gc-red)" : noise >= 6 ? "#FF8A3D" : noise >= 3 ? "var(--gc-yellow)" : "var(--gc-green)";
 }
 
+// Real-tool execution block shown under a Red action when live-fire is armed.
+function LiveFireBlock({ lf }: { lf: any }) {
+  const [open, setOpen] = useState(true);
+  const queued = lf.status === "queued";
+  const unavailable = lf.status === "unavailable";
+  const ok = lf.status === "done" && lf.success;
+  const headColor = queued ? "var(--gc-yellow)" : unavailable ? "var(--gc-muted)" : ok ? "var(--gc-green)" : "var(--gc-red)";
+  return (
+    <div style={{ margin: "6px 0 6px 26px", border: "1px solid var(--gc-border)", borderLeft: `3px solid ${headColor}`,
+      borderRadius: 6, background: "#0a0e16", fontFamily: "var(--mono)", fontSize: 11.5 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", cursor: "pointer" }} onClick={() => setOpen((v) => !v)}>
+        <i className="fa fa-bolt" style={{ color: headColor }} />
+        <span style={{ color: "var(--gc-text)", fontWeight: 600 }}>REAL TOOL · {lf.tool}</span>
+        <span style={{ color: "var(--gc-muted)" }}>{lf.function}</span>
+        {queued && <span style={{ color: "var(--gc-yellow)" }}><span className="spinner" style={{ width: 10, height: 10 }} /> running…</span>}
+        {unavailable && <span className="tag" style={{ fontSize: 9 }}>needs Windows-AD lab</span>}
+        {lf.status === "done" && (
+          <span className="tag" style={{ fontSize: 9, color: ok ? "var(--gc-green)" : "var(--gc-red)", borderColor: ok ? "var(--gc-green)" : "var(--gc-red)" }}>
+            {ok ? "executed" : "failed"}
+          </span>
+        )}
+        {lf.detected && <span className="tag" style={{ fontSize: 9, marginLeft: "auto", color: "#22d3a8", borderColor: "#22d3a8" }}><i className="fa fa-tower-observation" /> DETECTED</span>}
+      </div>
+      {open && (
+        <div style={{ padding: "0 8px 8px" }}>
+          {lf.command && <div style={{ color: "#9ecbff" }}><span style={{ color: "var(--gc-red)" }}>kali@gc-attacker</span>:~$ {lf.command}</div>}
+          {lf.output && <pre style={{ margin: "4px 0 0", whiteSpace: "pre-wrap", color: "var(--gc-muted)", maxHeight: 180, overflowY: "auto" }}>{lf.output}</pre>}
+          {lf.detected && lf.detection_evidence && (
+            <div style={{ color: "#22d3a8", marginTop: 4 }}><i className="fa fa-magnifying-glass" /> {lf.detection_evidence}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function RedConsole({
   snapshot, canPlay, onAction, onConclude,
 }: {
@@ -213,12 +249,15 @@ export default function RedConsole({
             <div className="card-header"><div className="card-title"><i className="fa fa-terminal" /> Operation log</div></div>
             <div id="sim-console" style={{ maxHeight: 220 }}>
               {events.map((e: LiveEvent) => (
-                <div key={e.seq} className="console-line" style={{ display: "flex", gap: 8 }}>
-                  <span className="ts">{fmt(e.t)}</span>
-                  <i className={`fa ${KIND_ICON[e.kind] ?? "fa-angle-right"}`} style={{ color: SEV_COLOR[e.severity] ?? "var(--gc-muted)", marginTop: 3, fontSize: 11 }} />
-                  <span className="msg" style={{ color: e.kind === "chat" ? "#9ecbff" : undefined }}>
-                    {e.kind === "chat" ? <b>{e.title}: </b> : null}{e.message || e.title}
-                  </span>
+                <div key={e.seq} className="console-line" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <span className="ts">{fmt(e.t)}</span>
+                    <i className={`fa ${KIND_ICON[e.kind] ?? "fa-angle-right"}`} style={{ color: SEV_COLOR[e.severity] ?? "var(--gc-muted)", marginTop: 3, fontSize: 11 }} />
+                    <span className="msg" style={{ color: e.kind === "chat" ? "#9ecbff" : undefined }}>
+                      {e.kind === "chat" ? <b>{e.title}: </b> : null}{e.message || e.title}
+                    </span>
+                  </div>
+                  {e.data?.live_fire && <LiveFireBlock lf={e.data.live_fire} />}
                 </div>
               ))}
             </div>

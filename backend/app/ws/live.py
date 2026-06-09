@@ -65,6 +65,11 @@ async def live_ws(websocket: WebSocket, session_id: str, player_id: str = "") ->
                         session.set_auto(msg.get("role", ""), msg.get("value"))
                     else:
                         changed, err = False, "only the host can change automation"
+                elif action == "set_live_fire":
+                    if player_id == session.host_id:
+                        session.arm_live_fire(bool(msg.get("value")))
+                    else:
+                        changed, err = False, "only the host can arm live-fire"
                 elif action == "red_action":
                     ok, reason = session.execute_red_action(
                         player_id, msg.get("action_id", ""), msg.get("target_id"))
@@ -96,6 +101,9 @@ async def live_ws(websocket: WebSocket, session_id: str, player_id: str = "") ->
                 await websocket.send_json({"type": "error", "message": err})
             if changed:
                 await manager.broadcast_snapshot(session_id)
+                # live-fire: run any real-tool jobs this action queued, streaming results back
+                if session.live_fire and session.pending_fire:
+                    await manager.run_live_fire(session_id)
                 # Persist report to DB when match completes
                 if session.status == "completed" and session.report is not None:
                     manager.persist_report(session)

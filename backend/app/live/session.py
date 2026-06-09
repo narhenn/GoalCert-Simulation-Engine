@@ -21,6 +21,7 @@ from app.engine.enums import CredScope, Health, SecurityState
 from app.engine.environment import EnvironmentSpec, build_world
 from app.engine.scenario import Scenario
 from app.engine.world import AssetInstance, World
+from app.lab import live_fire as lf
 
 from . import blue_playbook as bp
 from . import live_report
@@ -140,6 +141,10 @@ class LiveSession:
         self.incident_declared: set[str] = set()
         # automation: explicit per-role overrides (else auto when seat is unoccupied)
         self.auto_override: dict[str, bool] = {}
+        # live-fire: when armed (host) + lab up, Red actions also run REAL tools against the lab.
+        # Off by default → the deterministic simulation is unchanged.
+        self.live_fire: bool = False
+        self.pending_fire: list[dict] = []   # queued real-tool jobs awaiting async execution
 
     # ---- time / events -------------------------------------------------------
     def _t(self) -> int:
@@ -182,6 +187,26 @@ class LiveSession:
             self.auto_override.pop(role, None)
         else:
             self.auto_override[role] = bool(value)
+
+    # ---- live-fire (real tools) ----------------------------------------------
+    def arm_live_fire(self, on: bool) -> None:
+        """Host toggle: when on, mapped Red actions also execute real tools against the lab."""
+        self.live_fire = bool(on)
+
+    def drain_pending_fire(self) -> list[dict]:
+        """Return and clear queued real-tool jobs (the async caller runs them off-thread)."""
+        jobs, self.pending_fire = self.pending_fire, []
+        return jobs
+
+    def apply_fire_result(self, seq: int, result: dict) -> None:
+        """Attach a completed real-tool result to its action event (matched by event seq)."""
+        for ev in reversed(self.events):
+            if ev.get("seq") == seq:
+                ev["data"]["live_fire"] = result
+                if result.get("detected") and ev["data"].get("detected") is False:
+                    # real evidence corroborated an action the model thought went unseen
+                    ev["data"]["detected"] = True
+                break
 
     # ---- lobby ---------------------------------------------------------------
     def add_player(self, name: str) -> Player:
@@ -373,12 +398,17 @@ class LiveSession:
         sev = "critical" if action.noise >= 9 else "high" if action.noise >= 6 else "medium" if action.noise >= 3 else "low"
 
         detected = self._record_detection(action, target, sev)
-        self._emit("action", action.label,
+        action_ev = self._emit("action", action.label,
                    action.label + (f" → {tlabel}" if tlabel else "") + f"  ·  noise +{eff_noise}",
                    role="red", severity=sev, asset_id=target.id if target else None,
                    asset_label=tlabel,
                    data={"action_id": action.id, "mitre": action.mitre, "tactic": action.tactic,
                          "noise": eff_noise, "stage": action.stage, "detected": detected})
+        # live-fire: if armed and this action maps to a real tool, queue it for async execution
+        if self.live_fire and lf.has_spec(action.id):
+            action_ev["data"]["live_fire"] = lf.queued_view(action.id)
+            self.pending_fire.append({"seq": action_ev["seq"], "action_id": action.id,
+                                      "target_id": target.id if target else None})
 
         if action.intel:
             op.intel.append({"t": self._t(), "text": action.intel})
@@ -1005,7 +1035,7 @@ class LiveSession:
             "session": {"id": self.id, "scenario_name": self.scenario_name,
                         "status": self.status, "host_id": self.host_id,
                         "match_result": self.match_result, "mission": self.mission,
-                        "mission_locked": self.mission_locked},
+                        "mission_locked": self.mission_locked, "live_fire": self.live_fire},
             "missions": [mp.public(m) for m in mp.MISSIONS],
             "mission": mp.public(mp.MISSION_BY_ID[self.mission]),
             "scenario": {"name": self.scenario.name, "description": self.scenario.description,

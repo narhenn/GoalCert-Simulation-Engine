@@ -6,6 +6,7 @@ import RedConsole from "../components/RedConsole";
 import BlueConsole from "../components/BlueConsole";
 import SocConsole from "../components/SocConsole";
 import LiveReport from "../components/LiveReport";
+import LabPanel from "../components/LabPanel";
 import { loadPlayer, storePlayer, myName } from "./LiveSessions";
 
 const ROLE_META: Record<string, { icon: string; color: string; label: string }> = {
@@ -91,6 +92,10 @@ export default function LiveRoom() {
     </div>
   );
 
+  const LabSidePanel = (
+    <LabPanel isHost={isHost} liveFire={!!snap.session.live_fire} onToggleLiveFire={live.setLiveFire} />
+  );
+
   const ChatPanel = (
     <div className="card">
       <div className="card-header"><div className="card-title"><i className="fa fa-comments" /> Team chat</div></div>
@@ -119,6 +124,11 @@ export default function LiveRoom() {
             </span> · {live.state.connected ? "connected" : "reconnecting…"}
           </p>
         </div>
+        {snap.session.live_fire && (
+          <span className="tag" style={{ color: "var(--gc-red)", borderColor: "var(--gc-red)", fontWeight: 700, letterSpacing: 1 }}>
+            <i className="fa fa-bolt" /> LIVE-FIRE · REAL TOOLS
+          </span>
+        )}
       </div>
 
       {live.state.error && (
@@ -231,7 +241,7 @@ export default function LiveRoom() {
               )}
             </div>
           </div>
-          <div style={{ display: "grid", gap: 16 }}>{PlayersPanel}{ChatPanel}</div>
+          <div style={{ display: "grid", gap: 16 }}>{PlayersPanel}{LabSidePanel}{ChatPanel}</div>
         </div>
       )}
 
@@ -277,7 +287,7 @@ export default function LiveRoom() {
                       onAction={(id, t) => live.blueAction(id, t)} onConclude={live.conclude} />
                       : <div className="center-empty">Defender not initialised.</div>)}
             </div>
-            <div style={{ display: "grid", gap: 16 }}>{PlayersPanel}{ChatPanel}</div>
+            <div style={{ display: "grid", gap: 16 }}>{PlayersPanel}{LabSidePanel}{ChatPanel}</div>
           </div>
         );
       })()}

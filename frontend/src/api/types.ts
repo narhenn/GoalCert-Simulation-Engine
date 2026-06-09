@@ -188,9 +188,24 @@ export interface LiveEvent {
   seq: number; t: number; kind: string; role: string; title: string; message: string;
   severity: string; asset_id: string | null; asset_label: string | null; data: Record<string, any>;
 }
+// ---- Live-fire lab (real VMs + real tools) ----
+export interface LabTarget { id: string; name: string; host: string; os: string; role: string; services: string[] }
+export interface LabStatus {
+  backend: string; available: boolean; up: boolean; attacker_ready: boolean;
+  targets: LabTarget[]; containers: { name: string; running: boolean }[]; detail: string;
+  terminal_url: string;
+}
+export interface LabTool {
+  id: string; name: string; function: string; team: string; status: string;
+  license: string; runner: string; backs: string[]; homepage: string; note: string;
+}
+export interface LabToolRegistry {
+  counts: Record<string, number>; tools: LabTool[]; by_status: Record<string, LabTool[]>;
+}
+
 export interface LiveSnapshot {
   type: "snapshot";
-  session: { id: string; scenario_name: string; status: string; host_id: string; match_result: string | null; mission: string; mission_locked: boolean };
+  session: { id: string; scenario_name: string; status: string; host_id: string; match_result: string | null; mission: string; mission_locked: boolean; live_fire: boolean };
   scenario: { name: string; description: string; type: string; label: string; phases: string[]; objectives: { red: string[]; blue: string[] } };
   missions: LiveMission[];
   mission: LiveMission;
