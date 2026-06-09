@@ -261,6 +261,12 @@ export default function Tripwire() {
           break;
       }
     };
+    ws.onclose = () => {
+      // Auto-reconnect after 2 seconds if session is still in progress
+      setTimeout(() => {
+        if (wsRef.current === ws) connect(sid);
+      }, 2000);
+    };
     ws.onerror = () => ws.close();
   }, [send, streamTelemetry]);
 
@@ -274,7 +280,10 @@ export default function Tripwire() {
     connect(data.session_id);
   };
 
-  useEffect(() => () => { wsRef.current?.close(); }, []);
+  useEffect(() => () => {
+    const ws = wsRef.current;
+    if (ws) { wsRef.current = null; ws.close(); }
+  }, []);
 
   const handleNotificationContinue = () => {
     setShowNotification(false);
@@ -381,7 +390,8 @@ export default function Tripwire() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 12, height: scene ? "calc(100vh - 140px)" : "calc(100vh - 100px)" }}>
+      {/* @media handled via minmax — stacks on narrow screens */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(300px, 400px)", gap: 12, height: scene ? "calc(100vh - 140px)" : "calc(100vh - 100px)" }}>
         {/* LEFT: Terminal + Decision Panel */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 0 }}>
           {/* Terminal */}
