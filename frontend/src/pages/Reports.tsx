@@ -293,6 +293,63 @@ export default function Reports() {
         );
       })()}
 
+      {/* ============ LIVE-FIRE VALIDATION ============ */}
+      {(report as any).live_fire_validation && (() => {
+        const lf = (report as any).live_fire_validation;
+        return (
+          <div className="card" style={{ marginBottom: 20, border: "1px solid rgba(0,212,255,.2)" }}>
+            <div className="card-header">
+              <div className="card-title"><i className="fa fa-crosshairs" /> Live-Fire Validation — Model vs Actual</div>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: "var(--gc-accent)" }}>
+                {lf.total_real_executed} attacks executed on real infrastructure
+              </span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+              {[
+                { label: "Model Detection", value: `${lf.model_detection_rate}%`, color: "var(--gc-blue)" },
+                { label: "Real Detection", value: `${lf.real_detection_rate}%`, color: lf.real_detection_rate >= lf.model_detection_rate ? "var(--gc-green)" : "var(--gc-red)" },
+                { label: "Delta", value: `${lf.detection_delta_pct > 0 ? "+" : ""}${lf.detection_delta_pct}%`, color: Math.abs(lf.detection_delta_pct) < 10 ? "var(--gc-green)" : "var(--gc-yellow)" },
+                { label: "Lab", value: lf.lab_backend, color: "var(--gc-muted)" },
+              ].map((s, i) => (
+                <div key={i} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "var(--mono)", color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: "var(--gc-muted)", marginTop: 4 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            <table className="score-table">
+              <thead><tr><th>Technique</th><th>Target</th><th>Model</th><th>Real</th><th>Tool</th><th>Detection</th></tr></thead>
+              <tbody>
+                {(lf.results || []).filter((r: any) => r.real_executed).map((r: any, i: number) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 600, fontSize: 12 }}>{r.technique}<br/><span style={{ fontSize: 10, color: "var(--gc-muted)" }}>{r.mitre_id}</span></td>
+                    <td className="muted" style={{ fontSize: 12 }}>{r.target}</td>
+                    <td style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: r.model_detected ? "rgba(0,230,118,.12)" : "rgba(255,71,87,.12)", color: r.model_detected ? "var(--gc-green)" : "var(--gc-red)", fontWeight: 600 }}>
+                        {r.model_detected ? `DETECTED ${r.model_detect_time_s}s` : "MISSED"}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      {r.real_success
+                        ? <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(0,230,118,.12)", color: "var(--gc-green)", fontWeight: 600 }}>SUCCESS</span>
+                        : <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(255,71,87,.12)", color: "var(--gc-red)", fontWeight: 600 }}>FAILED</span>
+                      }
+                    </td>
+                    <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{r.tool}</td>
+                    <td style={{ textAlign: "center" }}>
+                      {r.real_detected
+                        ? <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(0,230,118,.12)", color: "var(--gc-green)", fontWeight: 600 }}>DETECTED</span>
+                        : <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(255,71,87,.12)", color: "var(--gc-red)", fontWeight: 600 }}>MISSED</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
+
       <div className="grid-2" style={{ marginBottom: 20 }}>
         <div className="card">
           <div className="card-title" style={{ marginBottom: 12 }}><i className="fa fa-gavel" /> Regulatory Impact</div>

@@ -744,6 +744,7 @@ def generate_report(run: dict) -> dict:
         "credential_timeline": _credential_timeline(run),
         "persistence_report": _persistence_report(run),
         "vm_execution": _vm_execution_report(run),
+        "live_fire_validation": run.get("summary", {}).get("live_fire_validation"),
         "decision_gates": _decision_gate_report(run),
         "regulatory_impact": _regulatory_impact(run),
         "financial_impact": _financial_impact(run),
