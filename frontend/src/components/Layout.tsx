@@ -29,7 +29,8 @@ export default function Layout({ children }: { children: ReactNode }) {
   const loc = useLocation();
   const title =
     NAV.find((n) => n.to !== "/" && loc.pathname.startsWith(n.to))?.label ??
-    (loc.pathname.startsWith("/sim") ? "Active Simulation" :
+    (loc.pathname.startsWith("/sim-edu") ? "Educational Simulation" :
+     loc.pathname.startsWith("/sim") ? "Active Simulation" :
      loc.pathname.startsWith("/launch") ? "Configure & Launch" : "Dashboard");
 
   return (

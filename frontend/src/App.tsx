@@ -10,6 +10,7 @@ import Leaderboard from "./pages/Leaderboard";
 import Reports from "./pages/Reports";
 import LiveSessions from "./pages/LiveSessions";
 import LiveRoom from "./pages/LiveRoom";
+import Tripwire from "./pages/Tripwire";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/reports/:runId" element={<Reports />} />
+        <Route path="/sim-edu/:scenarioId" element={<Tripwire />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
