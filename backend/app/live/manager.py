@@ -189,7 +189,11 @@ class LiveManager:
                 if session.status != "active":
                     continue  # lobby — wait for start
                 with self.lock(session_id):
-                    changed = auto.tick(session)
+                    if session.guided is not None:
+                        from . import guided_runtime
+                        changed = guided_runtime.auto_step(session)
+                    else:
+                        changed = auto.tick(session)
                 if changed:
                     await self.broadcast_snapshot(session_id)
                     if session.live_fire and session.pending_fire:

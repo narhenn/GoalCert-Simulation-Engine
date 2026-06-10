@@ -27,7 +27,9 @@ function Clock() {
 
 export default function Layout({ children }: { children: ReactNode }) {
   const loc = useLocation();
+  const fullBleed = loc.pathname.startsWith("/play");   // guided room manages its own full-height layout
   const title =
+    loc.pathname.startsWith("/play") ? "Guided Walkthrough" :
     NAV.find((n) => n.to !== "/" && loc.pathname.startsWith(n.to))?.label ??
     (loc.pathname.startsWith("/sim-edu") ? "Educational Simulation" :
      loc.pathname.startsWith("/sim") ? "Active Simulation" :
@@ -72,7 +74,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <NavLink to="/library" className="btn btn-primary"><i className="fa fa-plus" /> New Simulation</NavLink>
           </div>
         </div>
-        <div className="page">{children}</div>
+        <div className={fullBleed ? "" : "page"}>{children}</div>
       </div>
     </>
   );

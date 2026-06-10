@@ -85,6 +85,12 @@ async def live_ws(websocket: WebSocket, session_id: str, player_id: str = "") ->
                         player_id, msg.get("action_id", ""), msg.get("target_id"))
                     if not ok:
                         changed, err = False, reason
+                elif action == "guided_task":
+                    from app.live import guided_runtime
+                    ok, reason = guided_runtime.complete_task(
+                        session, player_id, msg.get("task_id", ""))
+                    if not ok:
+                        changed, err = False, reason
                 elif action == "conclude":
                     if not session.conclude_manual(player_id):
                         changed, err = False, "cannot conclude right now"

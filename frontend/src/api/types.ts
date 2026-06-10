@@ -94,6 +94,7 @@ export interface LivePlayer { id: string; name: string; role: string | null; is_
 export interface LiveSessionSummary {
   id: string; scenario_name: string; status: string; players: number; player_count: number;
   roles: Record<string, number>; created_at: number;
+  guided?: boolean; scenario_id?: string | null;
 }
 export interface LiveStage { id: string; name: string; summary: string; ref: string; }
 export interface LiveMission {

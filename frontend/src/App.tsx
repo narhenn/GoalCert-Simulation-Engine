@@ -11,6 +11,7 @@ import Reports from "./pages/Reports";
 import LiveSessions from "./pages/LiveSessions";
 import LiveRoom from "./pages/LiveRoom";
 import Tripwire from "./pages/Tripwire";
+import GuidedRoom from "./pages/GuidedRoom";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/library" element={<Library />} />
         <Route path="/live" element={<LiveSessions />} />
         <Route path="/live/:sessionId" element={<LiveRoom />} />
+        <Route path="/play/:scenarioId" element={<GuidedRoom />} />
         <Route path="/launch/:scenarioId" element={<Launch />} />
         <Route path="/sim/:runId" element={<ActiveSim />} />
         <Route path="/catalog" element={<Catalog />} />

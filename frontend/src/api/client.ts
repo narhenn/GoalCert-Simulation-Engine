@@ -49,6 +49,13 @@ export const api = {
   joinLiveSession: (id: string, body: { name: string }) =>
     post<{ session_id: string; player_id: string; scenario_name: string; status: string }>(`/api/live/sessions/${id}/join`, body),
 
+  // ---- Guided scenarios (the 3 demo walkthroughs: W1/R5/C5) ----
+  guidedScenarios: () => get<any[]>("/api/live/guided"),
+  guidedScenario: (id: string) => get<any>(`/api/live/guided/${id}`),
+  createGuidedSession: (body: { host_name: string; scenario_id: string }) =>
+    post<{ session_id: string; player_id: string; scenario_id: string; scenario_name: string; status: string }>(
+      "/api/live/guided/sessions", body),
+
   // ---- Live-fire lab (real VMs + real tools) ----
   labStatus: () => get<LabStatus>("/api/lab/status"),
   labTools: () => get<LabToolRegistry>("/api/lab/tools"),

@@ -29,3 +29,6 @@ pgdata/
 
 # TS build info
 *.tsbuildinfo
+
+# Extracted playbook text (scratch; source PDFs are committed)
+.pdftext/

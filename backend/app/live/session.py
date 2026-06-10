@@ -145,6 +145,8 @@ class LiveSession:
         # Off by default → the deterministic simulation is unchanged.
         self.live_fire: bool = False
         self.pending_fire: list[dict] = []   # queued real-tool jobs awaiting async execution
+        # guided walkthrough (W1/R5/C5): a GuidedRun when this session is a scripted tutorial, else None
+        self.guided = None  # type: ignore[var-annotated]
 
     # ---- time / events -------------------------------------------------------
     def _t(self) -> int:
@@ -899,9 +901,12 @@ class LiveSession:
         for p in self.players.values():
             if p.role:
                 roles[p.role] = roles.get(p.role, 0) + 1
+        guided = getattr(self, "guided", None)
         return {"id": self.id, "scenario_name": self.scenario_name, "status": self.status,
                 "players": sum(1 for p in self.players.values() if p.connected) or len(self.players),
-                "player_count": len(self.players), "roles": roles, "created_at": self.created_at}
+                "player_count": len(self.players), "roles": roles, "created_at": self.created_at,
+                "guided": guided is not None,
+                "scenario_id": guided.scenario_id if guided is not None else None}
 
     def _asset_public(self) -> list[dict]:
         if self.world is None:
@@ -1032,8 +1037,10 @@ class LiveSession:
         }
 
     def snapshot(self) -> dict:
+        from . import guided_runtime
         return {
             "type": "snapshot",
+            "guided": guided_runtime.snapshot(self),
             "session": {"id": self.id, "scenario_name": self.scenario_name,
                         "status": self.status, "host_id": self.host_id,
                         "match_result": self.match_result, "mission": self.mission,

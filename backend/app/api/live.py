@@ -12,7 +12,9 @@ from sqlalchemy.orm import Session
 
 from app.db.base import get_session
 from app.db.models import Scenario as ScenarioRow
-from app.engine.scenario import Scenario
+from app.engine.scenario import Objectives, Scenario
+from app.live import guided as guided_mod
+from app.live import guided_runtime as gr
 from app.live import missions as mp
 from app.live.manager import manager
 
@@ -23,6 +25,11 @@ class CreateSessionRequest(BaseModel):
     host_name: str = "host"
     mission_id: str | None = None     # launch a dedicated, self-contained mission
     scenario_id: str | None = None    # OR launch a pre-built scenario (e.g. Black Phoenix)
+
+
+class CreateGuidedRequest(BaseModel):
+    host_name: str = "host"
+    scenario_id: str                  # a guided scenario id, e.g. "scn-wannacry-w1"
 
 
 class JoinRequest(BaseModel):
@@ -58,6 +65,45 @@ def create_session(req: CreateSessionRequest, db: Session = Depends(get_session)
         raise HTTPException(422, "provide a mission_id or a scenario_id")
     return {"session_id": session.id, "player_id": host.id,
             "scenario_name": session.scenario_name, "status": session.status}
+
+
+@router.get("/guided")
+def list_guided_scenarios() -> list[dict]:
+    """The 3 guided demo scenarios (W1/R5/C5) — what the frontend offers."""
+    return guided_mod.list_guided()
+
+
+@router.get("/guided/{scenario_id}")
+def get_guided_scenario(scenario_id: str) -> dict:
+    """Full guided scenario script: phases + per-role Red/Blue/SOC tasks + decision points."""
+    scn = guided_mod.get_guided(scenario_id)
+    if scn is None:
+        raise HTTPException(404, "guided scenario not found")
+    return scn.public()
+
+
+@router.post("/guided/sessions", status_code=201)
+def create_guided_session(req: CreateGuidedRequest) -> dict:
+    """Start a guided walkthrough: a multi-user live session driven by the scenario's phase script.
+
+    Builds a corp+data world for the map, starts the session (so empty seats auto-drive), and attaches
+    the GuidedRun (which auto-arms real-tool live-fire against the Docker range).
+    """
+    scn = guided_mod.get_guided(req.scenario_id)
+    if scn is None:
+        raise HTTPException(404, "guided scenario not found")
+    env = mp.environment_for("ransomware_sim")   # corp + data + SOC terrain for the map
+    scenario = Scenario(
+        id=scn.id, name=scn.name, type="red", label="Guided",
+        description=scn.summary, recommended_topology=env, phases=[],
+        objectives=Objectives(red=[], blue=[]),
+    )
+    session, host = manager.create(scenario, env, req.host_name)
+    with manager.lock(session.id):
+        session.start()
+        gr.attach(session, scn.id)
+    return {"session_id": session.id, "player_id": host.id, "scenario_id": scn.id,
+            "scenario_name": session.scenario_name, "status": session.status, "guided": True}
 
 
 @router.get("/sessions")
