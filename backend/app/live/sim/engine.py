@@ -158,12 +158,16 @@ class ScenarioSim:
         # attack path. `host` is the single-target field used by exploit/infect/isolate/restore.
         thost = self.topo.hosts.get(params.get("host", "")) if params.get("host") else None
         tgt = {"asset_id": thost.id, "asset_label": thost.name} if thost else {}
+        # Guide data attached to every tool execution event
+        guide_data = {"consequence": tool.consequence, "next_hint": tool.next_hint,
+                      "teaching_note": tool.teaching_note, "guide_text": tool.guide_text}
         # real tools also fire the real command against the lab (streamed back by the manager)
         if tool.kind == "real" and tool.fire_action and self.session is not None:
             from app.lab import live_fire as lf
             ev = self._emit("action", "red", tool.name, f"{tool.fire_action}: real tool",
                             sev="medium", data={"tool_id": tool.id, "kind": "real",
-                                                "live_fire": lf.queued_view(tool.fire_action), **tgt}, notify=True)
+                                                "live_fire": lf.queued_view(tool.fire_action),
+                                                **guide_data, **tgt}, notify=True)
             self.session.pending_fire.append({"seq": ev["seq"], "action_id": tool.fire_action,
                                               "target_id": thost.id if thost else None})
         else:
@@ -171,7 +175,8 @@ class ScenarioSim:
                        (tool.command_hint + "  ·  " if tool.command_hint else "") + (msg or tool.outcome),
                        sev="high" if team != "red" else "medium",
                        data={"tool_id": tool.id, "kind": tool.kind,
-                             "command": tool.command_hint, "mitigates": tool.mitigates, **tgt}, notify=True)
+                             "command": tool.command_hint, "mitigates": tool.mitigates,
+                             **guide_data, **tgt}, notify=True)
         self._check_finish()
         return True, ""
 
@@ -580,6 +585,51 @@ class ScenarioSim:
         }
 
     # ---- snapshot ------------------------------------------------------------
+    def _compute_guide(self) -> dict:
+        """Compute guide state: current phase, next suggested tool per role, progress."""
+        # Map tool stages to ordered phases
+        all_tools = TL.catalog(self.scenario_id)
+        stages_seen: list[str] = []
+        for t in all_tools:
+            if t.stage not in stages_seen:
+                stages_seen.append(t.stage)
+
+        # Determine current phase from the last tool executed
+        all_done = set()
+        for r in ("red", "soc", "blue"):
+            all_done |= self.teams[r].done
+        current_stage = stages_seen[0] if stages_seen else ""
+        for t in all_tools:
+            if t.id in all_done:
+                current_stage = t.stage
+
+        phase_idx = stages_seen.index(current_stage) if current_stage in stages_seen else 0
+
+        # Find next suggested tool per role
+        next_tools: dict[str, dict | None] = {}
+        for role in ("red", "soc", "blue"):
+            unlocked = self.unlocked(role)
+            unlocked_ids = {t["id"] for t in unlocked if t["available"]}
+            done_ids = self.teams[role].done
+            # First available tool not yet done
+            for t in all_tools:
+                if t.team == role and t.id in unlocked_ids and t.id not in done_ids:
+                    next_tools[role] = {"id": t.id, "name": t.name, "stage": t.stage,
+                                        "guide_text": t.guide_text, "summary": t.summary}
+                    break
+            else:
+                next_tools[role] = None
+
+        return {
+            "phase": current_stage,
+            "phase_index": phase_idx,
+            "total_phases": len(stages_seen),
+            "phases": stages_seen,
+            "completed_phases": stages_seen[:phase_idx],
+            "next_tools": next_tools,
+            "progress": {"done": len(all_done), "total": len(all_tools)},
+        }
+
     def snapshot(self) -> dict:
         return {
             "scenario_id": self.scenario_id, "tick": self.tick_n, "finished": self.finished,
@@ -597,4 +647,5 @@ class ScenarioSim:
                                 for r, i in self.pending_intents.items()},
             "events": self.events,
             "report": self.report,
+            "guide": self._compute_guide(),
         }

@@ -47,11 +47,13 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl }:
             {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-eye" /> spectating — claim Red to act</div>}
             <div style={{ display: "grid", gap: 7 }}>
               {red.tools.map((t: any) => (
-                <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available}
+                <button key={t.id} className={"tool-btn" + (sim.guide?.next_tools?.red?.id === t.id ? " next-step" : "")}
+                  disabled={!canPlay || !t.available}
                   onClick={() => setTool(t)} title={t.available ? t.summary : t.reason}>
                   <span className="t-name">
                     <i className={`fa ${t.kind === "real" ? "fa-terminal" : "fa-bolt"}`} style={{ marginRight: 6, color: t.kind === "real" ? "#22d3ee" : "#ef4444" }} />
                     {t.name} {t.kind === "real" && <span style={{ fontSize: 8, color: "#22d3ee" }}>REAL</span>}
+                    {sim.guide?.next_tools?.red?.id === t.id && <span style={{ fontSize: 8, color: "#22d3ee", marginLeft: 4, animation: "nextPulse 2s infinite" }}>NEXT</span>}
                   </span>
                   <span className="t-sum">{t.available ? t.summary : `🔒 ${t.reason}`}</span>
                 </button>
