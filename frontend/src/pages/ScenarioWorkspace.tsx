@@ -7,6 +7,8 @@ import SocWorkspace from "../components/sim/SocWorkspace";
 import BlueWorkspace from "../components/sim/BlueWorkspace";
 import VictimDesktop from "../components/sim/VictimDesktop";
 import AarReport from "../components/AarReport";
+import GuidePanel from "../components/sim/GuidePanel";
+import ResultOverlayModal from "../components/sim/ResultOverlay";
 import { TEAM_META } from "../components/sim/shared";
 import "../components/sim/sim.css";
 
@@ -76,9 +78,26 @@ export default function ScenarioWorkspace() {
   const events = sim.events || [];
   const termUrl = lab?.terminal_url;
 
+  // Guide: track last tool result for the teaching overlay
+  const [lastResult, setLastResult] = useState<any>(null);
+  const seenGuide = useRef(-1);
+  useEffect(() => {
+    const fresh = events.filter((e: any) => e.seq > seenGuide.current && e.notify && e.data?.consequence);
+    if (fresh.length) {
+      seenGuide.current = Math.max(seenGuide.current, ...events.map((e: any) => e.seq));
+      const last = fresh[fresh.length - 1];
+      setLastResult({
+        tool_name: last.title, tool_id: last.data?.tool_id || "", team: last.role,
+        consequence: last.data?.consequence || "", next_hint: last.data?.next_hint || "",
+        teaching_note: last.data?.teaching_note || "", command: last.data?.command || "",
+        outcome: last.message,
+      });
+    }
+  }, [events]);
+
   return (
     <div className="ws-root">
-      <Toasts events={events} />
+      <ResultOverlayModal result={lastResult} onClose={() => setLastResult(null)} />
       {/* top bar */}
       <div className="ws-topbar">
         <button className="btn" onClick={quit}><i className="fa fa-arrow-left" /></button>
@@ -116,14 +135,17 @@ export default function ScenarioWorkspace() {
         </div>
       ))}
 
-      <div className="ws-body">
-        {tab === "red" && <RedWorkspace sim={sim} canPlay={canPlay("red")} runTool={live.runTool} events={events} termUrl={termUrl} error={live.state.error} />}
-        {tab === "soc" && <SocWorkspace sim={sim} canPlay={canPlay("soc")} runTool={live.runTool} events={events} />}
-        {tab === "blue" && <BlueWorkspace sim={sim} canPlay={canPlay("blue")} runTool={live.runTool} />}
-        {tab === "victim" && <VictimDesktop sim={sim} />}
+      <div className="ws-body" style={{ display: "flex" }}>
+        <GuidePanel sim={sim} myRole={myRole} scenarioId={scenarioId} />
+        <div style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
+          {tab === "red" && <RedWorkspace sim={sim} canPlay={canPlay("red")} runTool={live.runTool} events={events} termUrl={termUrl} />}
+          {tab === "soc" && <SocWorkspace sim={sim} canPlay={canPlay("soc")} runTool={live.runTool} events={events} />}
+          {tab === "blue" && <BlueWorkspace sim={sim} canPlay={canPlay("blue")} runTool={live.runTool} />}
+          {tab === "victim" && <VictimDesktop sim={sim} />}
+        </div>
       </div>
 
-      {sim.finished && <ResultOverlay sim={sim} report={snap.report} onQuit={quit} />}
+      {sim.finished && <FinishOverlay sim={sim} report={snap.report} onQuit={quit} />}
     </div>
   );
 }
@@ -191,34 +213,8 @@ function OutcomeBadge({ band, finished, outcome }: { band: string; finished: boo
   return <span style={{ color: c, fontWeight: 700, border: `1px solid ${c}66`, borderRadius: 6, padding: "1px 8px" }}>{text}</span>;
 }
 
-/* ---------- toasts + result ---------- */
-function Toasts({ events }: { events: any[] }) {
-  const [toasts, setToasts] = useState<any[]>([]);
-  const seen = useRef(-1);
-  useEffect(() => {
-    const fresh = events.filter((e) => e.seq > seen.current && e.notify);
-    if (fresh.length) {
-      seen.current = Math.max(seen.current, ...events.map((e) => e.seq));
-      setToasts((t) => [...t, ...fresh].slice(-4));
-      fresh.forEach((f) => setTimeout(() => setToasts((t) => t.filter((x) => x !== f)), 5000));
-    }
-  }, [events]);
-  return (
-    <div className="toast-wrap">
-      {toasts.map((e, i) => {
-        const c = TEAM_META[e.role]?.color || "#3b82f6";
-        return (
-          <div key={i} className="toast" style={{ borderLeft: `4px solid ${c}` }}>
-            <div style={{ fontWeight: 700, fontSize: 12.5, color: c }}>{e.title}</div>
-            <div style={{ fontSize: 11.5, color: "#cbd5e1", marginTop: 2 }}>{e.message}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ResultOverlay({ sim, report, onQuit }: { sim: any; report: any; onQuit: () => void }) {
+/* ---------- finish overlay ---------- */
+function FinishOverlay({ sim, report, onQuit }: { sim: any; report: any; onQuit: () => void }) {
   const [showReport, setShowReport] = useState(false);
   const c = sim.outcome === "Contained" ? "#22c55e" : sim.outcome === "Degraded" ? "#f59e0b" : "#ef4444";
 
