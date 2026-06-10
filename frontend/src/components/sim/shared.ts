@@ -48,3 +48,14 @@ export function hostsForFilter(hosts: SimHost[], filter: string): SimHost[] {
 
 export const fmtUSD = (n: number) => (n >= 1000 ? `$${(n / 1000).toFixed(0)}k` : `$${n}`);
 export const fmtT = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+// The exact shell command a tool wants the operator to TYPE in the terminal to run it. Every Red
+// tool carries a `command_hint`; real tools without one fall back to their fire-action id.
+export function toolCommand(tool: any): string {
+  if (tool?.command_hint) return tool.command_hint;
+  if (tool?.kind === "real") return tool.fire_action ? `run ${tool.fire_action}` : (tool.name || "").toLowerCase();
+  return (tool?.name || "").toLowerCase();
+}
+
+// Normalised compare so typing is forgiving on case + whitespace, strict on the rest.
+export const normCmd = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");

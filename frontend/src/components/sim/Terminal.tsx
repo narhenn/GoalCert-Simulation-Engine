@@ -1,13 +1,95 @@
-import { useEffect, useRef, useState } from "react";
-import { fmtT } from "./shared";
+import { KeyboardEvent, useEffect, useRef, useState } from "react";
+import { fmtT, normCmd } from "./shared";
 
-/* The Kali terminal dock — real tool output (live-fire) + synthetic command lines for sim steps. */
-export default function Terminal({ events, termUrl, height = 200 }: { events: any[]; termUrl?: string | null; height?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
+export interface StagedCmd {
+  toolId: string;
+  params: Record<string, string>;
+  command: string;       // the exact command the operator must type
+  label: string;         // human tool name (for the prompt)
+  targetLabel?: string;  // chosen host/alert, shown as context
+}
+
+/* The Kali terminal dock — now interactive. Real tool output (live-fire) + sim command lines stream
+   in from the event log; the operator STAGES a tool from the palette, then must TYPE its real command
+   here to fire it (Tab autocompletes; `help`/`clear` are built in). That hands-on-keyboard loop is
+   the "real hack" feel — no more one-click run. */
+export default function Terminal({ events, termUrl, pending, canPlay, onExecute, error, height = 230 }:
+  { events: any[]; termUrl?: string | null; pending: StagedCmd | null; canPlay: boolean;
+    onExecute: (toolId: string, params: Record<string, string>) => void; error?: string | null; height?: number }) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(true);
-  useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [events.length, open]);
+  const [input, setInput] = useState("");
+  const [scratch, setScratch] = useState<{ cls: string; text: string }[]>([]);  // local echoes (typed/err/sys)
+  const [hist, setHist] = useState<string[]>([]);
+  const [histIdx, setHistIdx] = useState(-1);
 
+  // Authoritative output: the same event-derived command/output lines as before (keeps live-fire
+  // results updating in place as they stream back from the lab).
   const lines = events.filter((e) => e.kind === "action" || (e.data && (e.data.command || e.data.live_fire)));
+
+  // When a real command actually runs, an event lands → wipe the local scratch (typed hints/errors)
+  // so the official output takes over and the dock stays clean.
+  const lastSeq = useRef(-1);
+  useEffect(() => {
+    const max = events.reduce((m, e) => Math.max(m, e.seq ?? -1), -1);
+    if (max > lastSeq.current) { lastSeq.current = max; setScratch([]); }
+  }, [events]);
+
+  // surface an engine-side rejection (e.g. target no longer valid) as a terminal error line
+  useEffect(() => { if (error) setScratch((s) => [...s, { cls: "err", text: error }]); }, [error]);
+
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+  }, [lines.length, scratch.length, open, pending]);
+  useEffect(() => { if (pending && open) inputRef.current?.focus(); }, [pending, open]);
+
+  const echo = (cls: string, text: string) => setScratch((s) => [...s, { cls, text }]);
+
+  const submit = () => {
+    const cmd = input.trim();
+    setInput("");
+    setHistIdx(-1);
+    if (!cmd) return;
+    setHist((h) => (h[h.length - 1] === cmd ? h : [...h, cmd]));
+
+    if (cmd === "clear") { setScratch([]); return; }
+    if (cmd === "whoami") { echo("cmd", cmd); echo("sys", "kali"); return; }
+    if (cmd === "help") {
+      echo("cmd", cmd);
+      echo("sys", pending
+        ? `staged: ${pending.label} — type:  ${pending.command}   (Tab autocompletes)`
+        : "stage a tool from the Kali palette on the left, then type its command here. built-ins: help · clear");
+      return;
+    }
+    if (!pending) {
+      echo("cmd", cmd);
+      echo("err", "no command staged — pick a Kali tool from the palette, then type the command it shows.");
+      return;
+    }
+    if (!canPlay) { echo("cmd", cmd); echo("err", "claim the Red seat to run tools."); return; }
+    if (normCmd(cmd) === normCmd(pending.command)) {
+      onExecute(pending.toolId, pending.params);     // output streams back via events; scratch auto-clears
+    } else {
+      echo("cmd", cmd);
+      echo("err", `not quite — type the staged command:  ${pending.command}`);
+    }
+  };
+
+  const navHist = (dir: number) => {
+    if (!hist.length) return;
+    const cur = histIdx === -1 ? hist.length : histIdx;
+    const idx = Math.max(0, Math.min(hist.length, cur + dir));
+    setHistIdx(idx);
+    setInput(idx >= hist.length ? "" : hist[idx]);
+  };
+
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") { e.preventDefault(); submit(); }
+    else if (e.key === "Tab") { e.preventDefault(); if (pending) setInput(pending.command); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); navHist(-1); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); navHist(1); }
+  };
 
   return (
     <div className="term">
@@ -21,9 +103,34 @@ export default function Terminal({ events, termUrl, height = 200 }: { events: an
         </span>
       </div>
       {open && (
-        <div className="term-body" ref={ref} style={{ height }}>
-          <div style={{ color: "#64748b" }}>GoalCert Kali — run tools from the palette, or open the real shell to type freely.</div>
+        <div className="term-body" ref={bodyRef} style={{ height }} onClick={() => inputRef.current?.focus()}>
+          <div style={{ color: "#64748b" }}>
+            GoalCert Kali — stage a tool from the palette, then <b style={{ color: "#94a3b8" }}>type its command</b> to run it.
+            Built-ins: <span className="term-cmd">help</span> · <span className="term-cmd">clear</span> · Tab autocompletes.
+          </div>
           {lines.map((e, i) => <Line key={i} e={e} />)}
+          {scratch.map((l, i) => (
+            <div key={"s" + i} className="term-line">
+              {l.cls === "cmd" && <span className="term-prompt">kali@gc-attacker:~$ </span>}
+              <span className={l.cls === "err" ? "term-err" : l.cls === "cmd" ? "term-typed" : "term-sys"}>{l.text}</span>
+            </div>
+          ))}
+
+          {pending && (
+            <div className="term-stage">
+              <i className="fa fa-keyboard" /> type: <span className="term-cmd">{pending.command}</span>
+              {pending.targetLabel && <span className="term-target"> · target {pending.targetLabel}</span>}
+              <span className="term-tab"> · Tab to autocomplete</span>
+            </div>
+          )}
+
+          <div className="term-inline">
+            <span className="term-prompt">kali@gc-attacker:~$</span>
+            <input ref={inputRef} className="term-input" value={input} spellCheck={false} autoFocus
+              autoComplete="off" autoCorrect="off" autoCapitalize="off"
+              placeholder={pending ? "type the staged command…" : (canPlay ? "stage a tool, then type its command…" : "spectating — claim Red to run tools")}
+              onChange={(e) => setInput(e.target.value)} onKeyDown={onKey} />
+          </div>
         </div>
       )}
     </div>

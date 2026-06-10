@@ -39,6 +39,19 @@
 .term-line { margin-bottom: 2px; line-height: 1.5; }
 .term-cmd { color: #22d3ee; }
 .term-out { color: #94a3b8; white-space: pre-wrap; margin: 2px 0 6px 12px; max-height: 200px; overflow: auto; }
+/* interactive input */
+.term-prompt { color: #22c55e; white-space: nowrap; }
+.term-typed { color: #e2e8f0; }
+.term-sys { color: #94a3b8; }
+.term-err { color: #f87171; }
+.term-inline { display: flex; align-items: baseline; gap: 6px; margin-top: 3px; }
+.term-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: #e2e8f0;
+  font-family: inherit; font-size: 12px; padding: 0; caret-color: #22d3ee; }
+.term-input::placeholder { color: #475569; }
+.term-stage { margin: 6px 0 2px; padding: 4px 8px; border-left: 2px solid #22d3ee; background: #0a1626;
+  border-radius: 0 6px 6px 0; color: #93a4bd; }
+.term-target { color: #fde047; }
+.term-tab { color: #475569; }
 
 /* cards / panels */
 .ws-card { border: 1px solid #1e293b; border-radius: 10px; background: #0a1120; padding: 12px; }

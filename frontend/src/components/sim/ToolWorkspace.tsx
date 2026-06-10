@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
-import { hostsForFilter, SimHost } from "./shared";
+import { hostsForFilter, SimHost, toolCommand } from "./shared";
 
-/* Generic tool workspace — renders a tool's schema as a form, previews the command, and RUNs it.
-   Real tools stream output to the terminal; sim/act tools mutate the topology. */
-export default function ToolWorkspace({ tool, sim, onRun, onClose }:
-  { tool: any; sim: any; onRun: (toolId: string, params: Record<string, string>) => void; onClose: () => void }) {
+/* Generic tool workspace — renders a tool's schema as a form and previews the command.
+   In "run" mode (Blue) it executes immediately; in "stage" mode (Red) it hands the command to the
+   terminal, where the operator must TYPE it to fire — real tools then stream live-fire output. */
+export default function ToolWorkspace({ tool, sim, onRun, onStage, mode = "run", onClose }:
+  { tool: any; sim: any; onRun: (toolId: string, params: Record<string, string>) => void;
+    onStage?: (toolId: string, params: Record<string, string>, command: string) => void;
+    mode?: "run" | "stage"; onClose: () => void }) {
   const hosts: SimHost[] = sim.topology.hosts;
   const alerts: any[] = sim.alerts || [];
   const [params, setParams] = useState<Record<string, string>>(() => {
@@ -14,12 +17,16 @@ export default function ToolWorkspace({ tool, sim, onRun, onClose }:
   });
   const set = (k: string, v: string) => setParams((p) => ({ ...p, [k]: v }));
 
-  const cmdPreview = useMemo(() => {
-    if (tool.kind === "real" && tool.fire_action) return `[real] ${tool.name} → live-fire`;
-    return tool.command_hint || "";
-  }, [tool]);
+  const command = useMemo(() => toolCommand(tool), [tool]);
+  // Targets must be picked before the command can fire — gate the CTA so the engine never rejects it.
+  const ready = (tool.schema || []).every((f: any) =>
+    !["host", "hosts", "alert"].includes(f.type) || (params[f.key] || "").length > 0);
 
-  const run = () => { onRun(tool.id, params); onClose(); };
+  const go = () => {
+    if (mode === "stage" && onStage) onStage(tool.id, params, command);
+    else onRun(tool.id, params);
+    onClose();
+  };
   const accent = tool.team === "red" ? "#ef4444" : tool.team === "blue" ? "#3b82f6" : "#a855f7";
 
   return (
@@ -83,12 +90,20 @@ export default function ToolWorkspace({ tool, sim, onRun, onClose }:
           </div>
         ))}
 
-        {cmdPreview && (
+        {command && (
           <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 11.5, color: "#22d3ee", background: "#05080f",
-            border: "1px solid #1e293b", borderRadius: 6, padding: "6px 8px", marginBottom: 12 }}>$ {cmdPreview}</div>
+            border: "1px solid #1e293b", borderRadius: 6, padding: "6px 8px", marginBottom: 6 }}>$ {command}</div>
         )}
-        <button className="btn btn-primary" style={{ width: "100%", background: accent, borderColor: accent }} onClick={run}>
-          <i className={`fa ${tool.kind === "real" ? "fa-terminal" : tool.team === "blue" ? "fa-shield" : "fa-bolt"}`} /> RUN — {tool.name}
+        {mode === "stage" && (
+          <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 12 }}>
+            <i className="fa fa-keyboard" /> You'll type this command in the terminal to run it{tool.kind === "real" ? " (fires for real on the Kali range)" : ""}.
+          </div>
+        )}
+        <button className="btn btn-primary" style={{ width: "100%", background: accent, borderColor: accent, opacity: ready ? 1 : 0.5 }}
+          disabled={!ready} onClick={go}>
+          {mode === "stage"
+            ? <><i className="fa fa-keyboard" /> Stage command — type it to run</>
+            : <><i className={`fa ${tool.kind === "real" ? "fa-terminal" : tool.team === "blue" ? "fa-shield" : "fa-bolt"}`} /> RUN — {tool.name}</>}
         </button>
       </div>
     </div>

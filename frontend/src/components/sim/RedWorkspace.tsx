@@ -1,15 +1,31 @@
 import { useState } from "react";
 import TopologyMap from "./TopologyMap";
-import Terminal from "./Terminal";
+import Terminal, { StagedCmd } from "./Terminal";
 import ToolWorkspace from "./ToolWorkspace";
+import { toolCommand } from "./shared";
 
 /* RED — "I am patient zero, watching the infection spread." Mission rail + live topology + tool
-   palette (Kali tools) + the terminal dock. */
-export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl }:
-  { sim: any; canPlay: boolean; runTool: (id: string, p?: Record<string, string>) => void; events: any[]; termUrl?: string | null }) {
+   palette (Kali tools) + the interactive terminal dock. Clicking a tool STAGES its real command;
+   the operator then types it in the terminal to fire it — a hands-on-keyboard "real hack" loop. */
+export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, error }:
+  { sim: any; canPlay: boolean; runTool: (id: string, p?: Record<string, string>) => void;
+    events: any[]; termUrl?: string | null; error?: string | null }) {
   const [tool, setTool] = useState<any>(null);
+  const [pending, setPending] = useState<StagedCmd | null>(null);
   const red = sim.teams.red;
   const worm = sim.worm;
+
+  const hostName = (id?: string) => sim.topology.hosts.find((h: any) => h.id === id)?.name;
+  const stage = (toolId: string, params: Record<string, string>, command: string, label: string) => {
+    const hid = params.host || (params.hosts || "").split(",")[0];
+    setPending({ toolId, params, command, label, targetLabel: hostName(hid) });
+  };
+  const onToolClick = (t: any) => {
+    if (!canPlay || !t.available) return;
+    if (t.schema && t.schema.length) setTool(t);                  // pick targets first, then stage
+    else stage(t.id, {}, toolCommand(t), t.name);                 // no params → stage right away
+  };
+  const execute = (toolId: string, params: Record<string, string>) => { runTool(toolId, params); setPending(null); };
 
   const objectives = [
     { label: "Discover the network", met: sim.topology.hosts.some((h: any) => h.revealed && !h.patient_zero) },
@@ -45,25 +61,32 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl }:
           <div className="ws-card">
             <h3>Kali tools</h3>
             {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-eye" /> spectating — claim Red to act</div>}
+            {canPlay && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-keyboard" /> click a tool to stage its command, then type it in the terminal below.</div>}
             <div style={{ display: "grid", gap: 7 }}>
-              {red.tools.map((t: any) => (
-                <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available}
-                  onClick={() => setTool(t)} title={t.available ? t.summary : t.reason}>
-                  <span className="t-name">
-                    <i className={`fa ${t.kind === "real" ? "fa-terminal" : "fa-bolt"}`} style={{ marginRight: 6, color: t.kind === "real" ? "#22d3ee" : "#ef4444" }} />
-                    {t.name} {t.kind === "real" && <span style={{ fontSize: 8, color: "#22d3ee" }}>REAL</span>}
-                  </span>
-                  <span className="t-sum">{t.available ? t.summary : `🔒 ${t.reason}`}</span>
-                </button>
-              ))}
+              {red.tools.map((t: any) => {
+                const staged = pending?.toolId === t.id;
+                return (
+                  <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available}
+                    style={staged ? { borderColor: "#22d3ee", boxShadow: "0 0 0 1px #22d3ee55" } : undefined}
+                    onClick={() => onToolClick(t)} title={t.available ? t.summary : t.reason}>
+                    <span className="t-name">
+                      <i className={`fa ${t.kind === "real" ? "fa-terminal" : "fa-bolt"}`} style={{ marginRight: 6, color: t.kind === "real" ? "#22d3ee" : "#ef4444" }} />
+                      {t.name} {t.kind === "real" && <span style={{ fontSize: 8, color: "#22d3ee" }}>REAL</span>}
+                      {staged && <span style={{ fontSize: 8, color: "#22d3ee", marginLeft: 4 }}>STAGED ↓</span>}
+                    </span>
+                    <span className="t-sum">{t.available ? t.summary : `🔒 ${t.reason}`}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
         {/* center: topology */}
         <div style={{ flex: 1, minWidth: 0 }}><TopologyMap sim={sim} /></div>
       </div>
-      <Terminal events={events} termUrl={termUrl} />
-      {tool && <ToolWorkspace tool={tool} sim={sim} onRun={runTool} onClose={() => setTool(null)} />}
+      <Terminal events={events} termUrl={termUrl} pending={pending} canPlay={canPlay} onExecute={execute} error={error} />
+      {tool && <ToolWorkspace tool={tool} sim={sim} mode="stage" onRun={runTool}
+        onStage={(id, p, cmd) => { stage(id, p, cmd, tool.name); setTool(null); }} onClose={() => setTool(null)} />}
     </div>
   );
 }
