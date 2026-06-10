@@ -15,7 +15,7 @@ import GuidedRoom from "./pages/GuidedRoom";
 import ScenarioWorkspace from "./pages/ScenarioWorkspace";
 
 // Scenarios that have an immersive sim workspace (must match the backend sim catalog in sim/tools.py).
-const IMMERSIVE = new Set(["scn-wannacry-w1"]);
+const IMMERSIVE = new Set(["scn-wannacry-w1", "scn-r5-phishing", "scn-c5-edr"]);
 function Play() {
   const { scenarioId = "" } = useParams();
   return IMMERSIVE.has(scenarioId) ? <ScenarioWorkspace /> : <GuidedRoom />;

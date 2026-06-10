@@ -34,7 +34,8 @@ class TeamState:
 class ScenarioSim:
     def __init__(self, scenario_id: str) -> None:
         self.scenario_id = scenario_id
-        self.topo: T.Topology = T.build_w1()          # (dispatch per scenario when R5/C5 land)
+        _builders = {"scn-wannacry-w1": T.build_w1, "scn-r5-phishing": T.build_r5, "scn-c5-edr": T.build_c5}
+        self.topo: T.Topology = _builders.get(scenario_id, T.build_w1)()
         self.tools: dict[str, TL.Tool] = TL.by_id(scenario_id)
         self.teams = {"red": TeamState(), "blue": TeamState(), "soc": TeamState()}
         self.events: list[dict] = []

@@ -139,3 +139,95 @@ def build_w1() -> Topology:
     # Patient zero is revealed to Red from the start (assumed breach).
     hosts["fin-014"].revealed = True
     return Topology(hosts=hosts, vlans=vlans, extra_hosts=250 - len(hosts))
+
+
+# ===========================================================================
+#  R5 — 85-host corp (Phishing-to-Encrypt ransomware)
+# ===========================================================================
+def build_r5() -> Topology:
+    hosts: dict[str, Host] = {}
+
+    def add(hid: str, name: str, vlan: str, role: str = "workstation",
+            vulnerable: bool = False, state: str = "healthy", pz: bool = False) -> None:
+        hosts[hid] = Host(id=hid, name=name, vlan=vlan, role=role, vulnerable=vulnerable,
+                          state=state, patient_zero=pz)
+
+    # Finance VLAN — j.harper's workstation is patient zero (phished)
+    add("fin-pc07", "FIN-PC07 (j.harper)", "fin", state="infected", pz=True, vulnerable=True)
+    for i in (1, 2, 3, 4, 5, 8, 10, 12, 15, 18):
+        add(f"fin-{i:03d}", f"FIN-WS-{i:03d}", "fin", vulnerable=(i % 4 != 0))
+    # Corporate VLAN
+    for i in (1, 3, 5, 7, 9, 11, 14, 16, 20):
+        add(f"corp-{i:03d}", f"CORP-WS-{i:03d}", "corp", vulnerable=(i % 3 == 0))
+    # IT VLAN
+    for i in (1, 2, 4):
+        add(f"it-{i:03d}", f"IT-WS-{i:03d}", "it", vulnerable=False)
+    # Server VLAN
+    add("fs-01", "FS-01 (File Server)", "srv", role="fileserver", vulnerable=True)
+    add("bkp-01", "BKP-01 (Backup)", "srv", role="backup", vulnerable=False)
+    add("dc-01", "DC-01 (Domain Controller)", "srv", role="domain_controller", vulnerable=False)
+    add("mail-01", "MAIL-01 (Exchange)", "srv", role="email", vulnerable=False)
+    add("app-01", "APP-01 (ERP)", "srv", role="appserver", vulnerable=True)
+
+    vlans = {
+        "fin": Vlan("fin", "Finance VLAN", reachable=("fin", "corp", "srv")),
+        "corp": Vlan("corp", "Corporate VLAN", reachable=("corp", "fin", "srv")),
+        "it": Vlan("it", "IT Admin VLAN", reachable=("it", "srv", "fin", "corp")),
+        "srv": Vlan("srv", "Server VLAN", reachable=("srv",)),
+    }
+    hosts["fin-pc07"].revealed = True
+    return Topology(hosts=hosts, vlans=vlans, extra_hosts=85 - len(hosts))
+
+
+# ===========================================================================
+#  C5 — 500-host enterprise (EDR outage exploitation)
+# ===========================================================================
+def build_c5() -> Topology:
+    hosts: dict[str, Host] = {}
+
+    def add(hid: str, name: str, vlan: str, role: str = "workstation",
+            vulnerable: bool = False, state: str = "healthy", pz: bool = False) -> None:
+        hosts[hid] = Host(id=hid, name=name, vlan=vlan, role=role, vulnerable=vulnerable,
+                          state=state, patient_zero=pz)
+
+    # Edge — VPN gateway (attacker's entry point)
+    add("vpn-gw", "VPN-GW-01", "edge", role="appserver", vulnerable=True)
+    # Corporate VLAN — large fleet, EDR is down
+    add("eng-ws12", "ENG-WS-12 (m.chen)", "corp", state="infected", pz=True, vulnerable=True)
+    for i in (1, 3, 5, 7, 9, 14, 18, 22, 25, 30, 35, 40):
+        add(f"corp-{i:03d}", f"CORP-WS-{i:03d}", "corp", vulnerable=(i % 5 != 0))
+    # Dev VLAN
+    for i in (1, 4, 8, 11, 15):
+        add(f"dev-{i:03d}", f"DEV-WS-{i:03d}", "dev", vulnerable=(i % 3 == 0))
+    # Server farm
+    add("srv-db01", "SRV-DB-01", "srv", role="database", vulnerable=True)
+    add("srv-app03", "SRV-APP-03", "srv", role="appserver", vulnerable=True)
+    add("srv-file01", "SRV-FILE-01", "srv", role="fileserver", vulnerable=True)
+    add("srv-web01", "SRV-WEB-01", "srv", role="appserver", vulnerable=False)
+    # Domain controllers
+    add("dc-01", "DC-01", "dc", role="domain_controller", vulnerable=False)
+    add("dc-02", "DC-02", "dc", role="domain_controller", vulnerable=False)
+    # Data / file shares
+    add("data-fs01", "DATA-FS-01", "data", role="fileserver", vulnerable=True)
+    add("data-fs02", "DATA-FS-02", "data", role="fileserver", vulnerable=True)
+    # Backup
+    add("bkp-srv01", "BKP-SRV-01", "bkp", role="backup", vulnerable=False)
+    add("bkp-srv02", "BKP-SRV-02", "bkp", role="backup", vulnerable=False)
+    # SOC
+    add("siem-01", "SIEM-01", "soc", role="appserver", vulnerable=False)
+    # Cloud connector
+    add("cloud-gw", "CLOUD-GW-01", "cloud", role="appserver", vulnerable=True)
+
+    vlans = {
+        "edge": Vlan("edge", "Edge / VPN", reachable=("edge", "corp")),
+        "corp": Vlan("corp", "Corporate Endpoints", reachable=("corp", "dev", "srv", "dc")),
+        "dev": Vlan("dev", "Dev / Engineering", reachable=("dev", "corp", "srv")),
+        "srv": Vlan("srv", "Server Farm", reachable=("srv", "dc", "data")),
+        "dc": Vlan("dc", "Domain Controllers", reachable=("dc", "srv", "corp", "data", "bkp")),
+        "data": Vlan("data", "Data / File Shares", reachable=("data", "srv")),
+        "bkp": Vlan("bkp", "Backup Infrastructure", reachable=("bkp",)),
+        "soc": Vlan("soc", "SOC / SIEM", reachable=("soc",)),
+        "cloud": Vlan("cloud", "Cloud (Azure/AWS)", reachable=("cloud", "corp")),
+    }
+    hosts["eng-ws12"].revealed = True
+    return Topology(hosts=hosts, vlans=vlans, extra_hosts=500 - len(hosts))
