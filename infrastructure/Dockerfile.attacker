@@ -1,12 +1,18 @@
 # GoalCert live-fire attacker box — real Kali Linux with the integrated free tools.
-# Built once by scripts/lab-setup; runs idle (`sleep infinity`) and the engine drives it via
-# `docker exec gc-attacker <tool ...>`.
+# Built once by scripts/lab-setup; runs idle (serves ttyd) and the engine drives it via
+# `docker compose exec attacker <tool ...>`.
 #
-# Integrated tooling (1 per function, all free / open-source):
-#   nmap     — network recon & service discovery
-#   nikto    — web vulnerability scanning
-#   impacket — Active Directory credential attacks (used in the Phase-2 Windows lab)
-#   netexec  — SMB / AD enumeration & credential testing (nxc)
+# Integrated tooling (free / open-source) — REAL by default (only dangerous/impossible steps are
+# simulated by the engine, never run here):
+#   nmap      — network recon & service discovery
+#   netexec   — SMB / AD enumeration & credential testing (nxc, CrackMapExec successor)
+#   nikto     — web vulnerability scanning
+#   gobuster  — web content/dir enumeration
+#   sqlmap    — SQL injection (DVWA)
+#   hydra     — online brute-force (DVWA login)
+#   smbclient — SMB share browse + real file download (exfil) from the Samba target
+#   impacket  — Active Directory credential attacks (used in the Phase-2 Windows lab)
+#   curl/jq   — scripted HTTP exploitation (DVWA command-injection RCE, etc.)
 FROM kalilinux/kali-rolling
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -14,10 +20,18 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         nmap \
         nikto \
+        gobuster \
+        sqlmap \
+        hydra \
+        dirb \
+        smbclient \
+        wordlists \
         python3-impacket \
+        python3-requests \
         python3-pip \
         pipx \
         curl \
+        jq \
         iproute2 \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -28,12 +42,23 @@ RUN apt-get update \
         || (PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install netexec)) \
     && rm -rf /var/lib/apt/lists/* || true
 
+# Metasploit — heavy (~1.5 GB); best-effort so a slow/failed pull never breaks the demo image.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends metasploit-framework \
+    ; rm -rf /var/lib/apt/lists/* || true
+
+# DVWA auth helper: sets up the DB + logs in + sets security=low, prints a usable cookie string.
+# Lets sqlmap / curl / hydra exploit DVWA headlessly (DVWA needs a session + security cookie).
+COPY dvwa-auth.py /usr/local/bin/dvwa-auth
+RUN chmod +x /usr/local/bin/dvwa-auth
+
 # ttyd — serves an interactive shell over HTTP so a human can drive this real Kali box from a browser.
 RUN curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 \
         -o /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd
 
 # Quick self-check at build time so a broken image fails the build, not the demo.
-RUN command -v nmap && command -v nikto && command -v impacket-secretsdump && command -v ttyd
+RUN command -v nmap && command -v nikto && command -v gobuster && command -v sqlmap \
+    && command -v hydra && command -v smbclient && command -v impacket-secretsdump && command -v ttyd
 
 EXPOSE 7681
 # Keep the container alive AND serve a real, writable Kali shell in the browser on :7681.

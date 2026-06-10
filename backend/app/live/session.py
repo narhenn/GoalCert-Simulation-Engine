@@ -147,6 +147,8 @@ class LiveSession:
         self.pending_fire: list[dict] = []   # queued real-tool jobs awaiting async execution
         # guided walkthrough (W1/R5/C5): a GuidedRun when this session is a scripted tutorial, else None
         self.guided = None  # type: ignore[var-annotated]
+        # immersive cyber-range sim (sim/engine.ScenarioSim) when this is a dynamic workspace, else None
+        self.sim = None  # type: ignore[var-annotated]
 
     # ---- time / events -------------------------------------------------------
     def _t(self) -> int:
@@ -1041,6 +1043,7 @@ class LiveSession:
         return {
             "type": "snapshot",
             "guided": guided_runtime.snapshot(self),
+            "sim": self.sim.snapshot() if self.sim else None,
             "session": {"id": self.id, "scenario_name": self.scenario_name,
                         "status": self.status, "host_id": self.host_id,
                         "match_result": self.match_result, "mission": self.mission,

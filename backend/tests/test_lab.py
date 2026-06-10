@@ -108,8 +108,11 @@ def test_integrated_tools_back_real_red_actions():
 #  Live-fire mapping + executor (FakeLab)
 # --------------------------------------------------------------------------- #
 def test_fire_specs_reference_real_actions():
+    # A FireSpec backs either a free-form red_playbook action OR a sim-scenario real tool.
+    # web.* / exfil.* are the lab's web-exploitation + SMB file-exfil families used by the sim scenarios.
     for f in lf.FIRE_SPECS:
-        assert f.action_id in rp.ACTIONS_BY_ID, f.action_id
+        assert (f.action_id in rp.ACTIONS_BY_ID
+                or f.action_id.split(".")[0] in {"web", "exfil"}), f.action_id
 
 
 def test_run_job_linux_action_is_real_and_detected():

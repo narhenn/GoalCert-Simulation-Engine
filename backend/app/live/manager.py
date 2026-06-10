@@ -189,7 +189,9 @@ class LiveManager:
                 if session.status != "active":
                     continue  # lobby — wait for start
                 with self.lock(session_id):
-                    if session.guided is not None:
+                    if getattr(session, "sim", None) is not None:
+                        changed = session.sim.tick()
+                    elif session.guided is not None:
                         from . import guided_runtime
                         changed = guided_runtime.auto_step(session)
                     else:

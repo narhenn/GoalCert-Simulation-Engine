@@ -91,8 +91,20 @@ async def live_ws(websocket: WebSocket, session_id: str, player_id: str = "") ->
                         session, player_id, msg.get("task_id", ""))
                     if not ok:
                         changed, err = False, reason
+                elif action == "run_tool":
+                    sim = getattr(session, "sim", None)
+                    if sim is None:
+                        changed, err = False, "not a cyber-range session"
+                    else:
+                        ok, reason = sim.run_tool(player.role or "", msg.get("tool_id", ""),
+                                                  msg.get("params") or {})
+                        if not ok:
+                            changed, err = False, reason
                 elif action == "conclude":
-                    if not session.conclude_manual(player_id):
+                    sim = getattr(session, "sim", None)
+                    if sim is not None:
+                        sim.conclude()
+                    elif not session.conclude_manual(player_id):
                         changed, err = False, "cannot conclude right now"
                 elif action == "chat":
                     text = str(msg.get("text", ""))[:300]

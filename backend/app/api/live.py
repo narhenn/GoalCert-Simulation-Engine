@@ -101,9 +101,20 @@ def create_guided_session(req: CreateGuidedRequest) -> dict:
     session, host = manager.create(scenario, env, req.host_name)
     with manager.lock(session.id):
         session.start()
-        gr.attach(session, scn.id)
+        # Immersive sim workspace if this scenario has a sim catalog (W1…); else the guided room.
+        from app.live.sim import tools as sim_tools
+        if sim_tools.catalog(scn.id):
+            from app.live.sim.engine import ScenarioSim
+            session.sim = ScenarioSim(scn.id)
+            session.sim.session = session
+            session.arm_live_fire(True)        # real recon/enum tools fire against the lab when up
+            mode = "sim"
+        else:
+            gr.attach(session, scn.id)
+            mode = "guided"
     return {"session_id": session.id, "player_id": host.id, "scenario_id": scn.id,
-            "scenario_name": session.scenario_name, "status": session.status, "guided": True}
+            "scenario_name": session.scenario_name, "status": session.status,
+            "guided": True, "mode": mode}
 
 
 @router.get("/sessions")
