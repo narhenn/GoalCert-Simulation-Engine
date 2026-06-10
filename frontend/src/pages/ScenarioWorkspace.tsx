@@ -31,6 +31,18 @@ export default function ScenarioWorkspace() {
     if (live.state.connected && sess?.role && !claimed.current) { claimed.current = true; live.claimRole(sess.role); }
   }, [live.state.connected, sess, live]);
 
+  // A stored session can be stale (backend restarted, or an old session id) → "session not found".
+  // Recover by clearing it and returning to the landing screen so a fresh session is created.
+  useEffect(() => {
+    const e = live.state.error || "";
+    if (e.includes("session not found") || e.includes("re-join") || e.includes("unknown player")) {
+      localStorage.removeItem(key);
+      claimed.current = false;
+      setSess(null);
+      live.clearError();
+    }
+  }, [live.state.error]);  // eslint-disable-line react-hooks/exhaustive-deps
+
   // default the active tab to your seat once chosen
   useEffect(() => { if (sess?.role) setTab(sess.role); }, [sess?.role]);
 

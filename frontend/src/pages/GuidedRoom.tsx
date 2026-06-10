@@ -33,7 +33,7 @@ export default function GuidedRoom() {
   useEffect(() => { api.guidedScenario(scenarioId).then(setMeta).catch(() => setMeta(null)); }, [scenarioId]);
   useEffect(() => { api.labStatus().then(setLab).catch(() => setLab(null)); }, []);
 
-  const { state, claimRole, guidedTask, setAuto } = useLiveSocket(sess?.session_id ?? null, sess?.player_id ?? null);
+  const { state, claimRole, guidedTask, setAuto, clearError } = useLiveSocket(sess?.session_id ?? null, sess?.player_id ?? null);
   const claimedRef = useRef(false);
   useEffect(() => {
     if (state.connected && sess?.role && !claimedRef.current) {
@@ -41,6 +41,17 @@ export default function GuidedRoom() {
       claimRole(sess.role);
     }
   }, [state.connected, sess, claimRole]);
+
+  // Recover from a stale stored session (backend restart / dead id) → "session not found".
+  useEffect(() => {
+    const e = state.error || "";
+    if (e.includes("session not found") || e.includes("re-join") || e.includes("unknown player")) {
+      localStorage.removeItem(storeKey);
+      claimedRef.current = false;
+      setSess(null);
+      clearError();
+    }
+  }, [state.error]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   function launch(name: string, role: string) {
     api.createGuidedSession({ host_name: name || "operator", scenario_id: scenarioId }).then((r) => {
