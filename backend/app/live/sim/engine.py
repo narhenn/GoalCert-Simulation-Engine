@@ -154,20 +154,24 @@ class ScenarioSim:
         msg = self._apply(tool, params)
         self.teams[team].done.add(tool.id)
         self.teams[team].score += 12 if team == "red" else 15
+        # Tag the action with the host it targeted (if any) so the AAR can reconstruct the per-asset
+        # attack path. `host` is the single-target field used by exploit/infect/isolate/restore.
+        thost = self.topo.hosts.get(params.get("host", "")) if params.get("host") else None
+        tgt = {"asset_id": thost.id, "asset_label": thost.name} if thost else {}
         # real tools also fire the real command against the lab (streamed back by the manager)
         if tool.kind == "real" and tool.fire_action and self.session is not None:
             from app.lab import live_fire as lf
             ev = self._emit("action", "red", tool.name, f"{tool.fire_action}: real tool",
                             sev="medium", data={"tool_id": tool.id, "kind": "real",
-                                                "live_fire": lf.queued_view(tool.fire_action)}, notify=True)
+                                                "live_fire": lf.queued_view(tool.fire_action), **tgt}, notify=True)
             self.session.pending_fire.append({"seq": ev["seq"], "action_id": tool.fire_action,
-                                              "target_id": None})
+                                              "target_id": thost.id if thost else None})
         else:
             self._emit("action" if team == "red" else "response", team, tool.name,
                        (tool.command_hint + "  ·  " if tool.command_hint else "") + (msg or tool.outcome),
                        sev="high" if team != "red" else "medium",
                        data={"tool_id": tool.id, "kind": tool.kind,
-                             "command": tool.command_hint, "mitigates": tool.mitigates}, notify=True)
+                             "command": tool.command_hint, "mitigates": tool.mitigates, **tgt}, notify=True)
         self._check_finish()
         return True, ""
 
@@ -517,7 +521,8 @@ class ScenarioSim:
     def _finish(self) -> None:
         self.finished = True
         self.outcome = self.outcome_band()
-        self.report = self._build_report()
+        from . import report_adapter
+        self.report = report_adapter.build(self)
         self._emit("g_result", "system", f"Scenario complete — {self.outcome}",
                    f"{self.infected_total()} infected, {self.impacted_total()} impacted, "
                    f"est. loss ${self.financial_loss():,}.", sev="critical",
@@ -534,9 +539,16 @@ class ScenarioSim:
                 pass
 
     # ---- AAR -----------------------------------------------------------------
+    _SCN_META = {
+        "scn-wannacry-w1": ("Operation Tripwire", "WannaCry-Style SMB Worm"),
+        "scn-r5-phishing": ("Phishing to Encrypt", "Human-Operated Ransomware Campaign"),
+        "scn-c5-edr": ("EDR Outage Exploitation", "Attacking During Blindness"),
+    }
+
     def _build_report(self) -> dict:
         band = self.outcome or self.outcome_band()
         result = {"Contained": "blue", "Degraded": "draw", "Catastrophic": "red"}.get(band, "draw")
+        scn_name, scn_sub = self._SCN_META.get(self.scenario_id, ("Operation Tripwire", "Immersive cyber-range"))
         counts = self.topo.counts()
         teams = {}
         for role in ("red", "soc", "blue"):
@@ -555,8 +567,7 @@ class ScenarioSim:
             recs.append("Strong run — early detection + containment held the blast radius down.")
         return {
             "session_id": self.session.id if self.session else "", "guided": True,
-            "scenario": {"id": self.scenario_id, "name": "Operation Tripwire",
-                         "subtitle": "WannaCry-Style SMB Worm"},
+            "scenario": {"id": self.scenario_id, "name": scn_name, "subtitle": scn_sub},
             "result": result, "outcome_band": band,
             "verdict": {"Contained": "Contained — minimal impact.", "Degraded": "Degraded — partial impact.",
                         "Catastrophic": "Catastrophic — fleet-wide encryption."}.get(band, "Concluded."),
