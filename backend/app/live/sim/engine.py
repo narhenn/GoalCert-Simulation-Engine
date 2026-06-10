@@ -57,6 +57,9 @@ class ScenarioSim:
         self.extra_impacted = 0
         self.extra_dormant = 0
         self.pending_intents: dict[str, dict] = {}     # role -> {tool_id, params, label, ticks_left}
+        # Auto-driven seats act ONLY when the host enables this. Off by default so a learner can read,
+        # explore tools and act at their own pace — nothing happens on a clock until they make it happen.
+        self.auto_enabled = False
         self.finished = False
         self.outcome: str | None = None
         self.report: dict | None = None
@@ -385,6 +388,10 @@ class ScenarioSim:
         return self.session.is_auto(role)
 
     def _auto_step(self) -> bool:
+        if not self.auto_enabled:               # learner-paced: no seat acts on a timer
+            if self.pending_intents:
+                self.pending_intents.clear()
+            return False
         changed = False
         for role in ROLES:
             if not self._is_auto(role):
@@ -490,10 +497,17 @@ class ScenarioSim:
                    and (self.smbv1_patched or self.kill_switch == "tripped"))
         # Red end: impact detonated and the spread phase is over
         spent = ransomed and not self.propagating
-        if evicted or spent or self.tick_n > 80:
+        # No idle/timeout finish — the run ends only on real eviction, ransomware impact, or a manual
+        # Conclude. A beginner can take as long as they like before acting.
+        if evicted or spent:
             self._finish()
             return True
         return False
+
+    def set_auto_enabled(self, on: bool) -> None:
+        self.auto_enabled = bool(on)
+        if not on:
+            self.pending_intents.clear()
 
     def conclude(self) -> None:
         if not self.finished:
@@ -557,7 +571,7 @@ class ScenarioSim:
     def snapshot(self) -> dict:
         return {
             "scenario_id": self.scenario_id, "tick": self.tick_n, "finished": self.finished,
-            "outcome": self.outcome, "topology": self.topo.public(),
+            "outcome": self.outcome, "auto_enabled": self.auto_enabled, "topology": self.topo.public(),
             "worm": {"r_value": self.r_value, "propagating": self.propagating,
                      "kill_switch": self.kill_switch, "segmented": self.segmented,
                      "smbv1_patched": self.smbv1_patched, "backups_safe": self.backups_safe,

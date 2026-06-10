@@ -54,3 +54,15 @@
 .toast { background: #0b1220; border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 24px #000a; }
 .intent-banner { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: #1a1206;
   border-bottom: 1px solid #b45309; color: #fcd34d; font-size: 12.5px; }
+
+/* AAR report */
+.aar { color: #e2e8f0; }
+.aar-card { border: 1px solid #1e293b; border-radius: 10px; background: #0a1120; padding: 16px; margin-bottom: 14px; }
+.aar-chip { font-size: 11px; padding: 2px 8px; border-radius: 5px; border: 1px solid #334155; }
+@media print {
+  body * { visibility: hidden !important; }
+  .aar-print, .aar-print * { visibility: visible !important; }
+  .aar-print { position: absolute; inset: 0; background: #fff !important; color: #111 !important; }
+  .aar-print .aar-card { background: #fff !important; border-color: #ccc !important; color: #111 !important; }
+  .aar-print .no-print { display: none !important; }
+}

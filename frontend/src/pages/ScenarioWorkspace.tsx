@@ -6,6 +6,7 @@ import RedWorkspace from "../components/sim/RedWorkspace";
 import SocWorkspace from "../components/sim/SocWorkspace";
 import BlueWorkspace from "../components/sim/BlueWorkspace";
 import VictimDesktop from "../components/sim/VictimDesktop";
+import AarReport from "../components/AarReport";
 import { TEAM_META } from "../components/sim/shared";
 import "../components/sim/sim.css";
 
@@ -100,6 +101,10 @@ export default function ScenarioWorkspace() {
           {termUrl
             ? <a className="btn" href={termUrl} target="_blank" rel="noreferrer" style={{ color: "#22d3ee" }}><i className="fa fa-terminal" /> Kali</a>
             : <span style={{ color: "#64748b", fontSize: 11 }}><i className="fa fa-terminal" /> Kali offline</span>}
+          <button className={"btn" + (sim.auto_enabled ? " btn-primary" : "")} title="When ON, empty seats auto-play (telegraphed). OFF = learn at your own pace."
+            onClick={() => live.setSimAuto(!sim.auto_enabled)}>
+            <i className={`fa ${sim.auto_enabled ? "fa-robot" : "fa-user"}`} /> Auto-defense {sim.auto_enabled ? "ON" : "OFF"}
+          </button>
           {!sim.finished && <button className="btn" onClick={live.conclude}><i className="fa fa-flag-checkered" /> Conclude</button>}
         </div>
       </div>
@@ -138,7 +143,7 @@ function Landing({ meta, onLaunch, onBack }: { meta: any; onLaunch: (n: string, 
           {meta?.summary}
         </div>
       </div>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Pick your seat <span style={{ color: "#8aa0c2", fontWeight: 400 }}>— the other two auto-drive (telegraphed)</span></div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>Pick your seat <span style={{ color: "#8aa0c2", fontWeight: 400 }}>— take your time; the other seats stay idle until you turn on Auto-defense (top bar) or teammates join</span></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {["red", "blue", "soc"].map((k) => {
           const m = TEAM_META[k];
@@ -214,12 +219,19 @@ function Toasts({ events }: { events: any[] }) {
 }
 
 function ResultOverlay({ sim, report, onQuit }: { sim: any; report: any; onQuit: () => void }) {
+  const [showReport, setShowReport] = useState(false);
   const c = sim.outcome === "Contained" ? "#22c55e" : sim.outcome === "Degraded" ? "#f59e0b" : "#ef4444";
-  const download = () => {
-    const blob = new Blob([JSON.stringify(report ?? sim, null, 2)], { type: "application/json" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = `AAR_${sim.scenario_id}_${Date.now()}.json`; a.click();
-  };
+
+  if (showReport && report) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 80, background: "#070b14", overflowY: "auto" }}>
+        <AarReport report={report} onClose={() => setShowReport(false)} />
+        <div className="no-print" style={{ textAlign: "center", paddingBottom: 28 }}>
+          <button className="btn btn-primary" onClick={onQuit}><i className="fa fa-rotate-right" /> Back to scenarios</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000a", zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div className="ws-card" style={{ width: 460, textAlign: "center", borderColor: c }}>
@@ -231,11 +243,11 @@ function ResultOverlay({ sim, report, onQuit }: { sim: any; report: any; onQuit:
         {report && <div style={{ display: "flex", justifyContent: "center", gap: 20, fontSize: 13, color: "#8aa0c2", marginBottom: 14 }}>
           {Object.entries(report.teams || {}).map(([r, t]: any) => <span key={r}>{r.toUpperCase()} {t.score}</span>)}
         </div>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-          <button className="btn btn-primary" onClick={onQuit}><i className="fa fa-rotate-right" /> Back to scenarios</button>
-          {report && <button className="btn" onClick={download}><i className="fa fa-download" /> Download AAR</button>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+          {report && <button className="btn btn-primary" onClick={() => setShowReport(true)}><i className="fa fa-file-lines" /> View full report</button>}
+          <button className="btn" onClick={onQuit}><i className="fa fa-rotate-right" /> Back to scenarios</button>
         </div>
-        {report && <div style={{ fontSize: 11, color: "#8aa0c2", marginTop: 8 }}><i className="fa fa-floppy-disk" /> Saved to Reports &amp; AAR.</div>}
+        {report && <div style={{ fontSize: 11, color: "#8aa0c2", marginTop: 8 }}><i className="fa fa-floppy-disk" /> Saved to Reports &amp; AAR (open it there to view or print as PDF).</div>}
       </div>
     </div>
   );

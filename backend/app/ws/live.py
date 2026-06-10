@@ -91,6 +91,12 @@ async def live_ws(websocket: WebSocket, session_id: str, player_id: str = "") ->
                         session, player_id, msg.get("task_id", ""))
                     if not ok:
                         changed, err = False, reason
+                elif action == "set_sim_auto":
+                    sim = getattr(session, "sim", None)
+                    if sim is not None and player_id == session.host_id:
+                        sim.set_auto_enabled(bool(msg.get("value")))
+                    else:
+                        changed, err = False, "only the host can change automation"
                 elif action == "run_tool":
                     sim = getattr(session, "sim", None)
                     if sim is None:

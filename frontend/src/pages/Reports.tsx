@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { ReportContent, RunSummary } from "../api/types";
 import { ROLE_ACCENT, ROLE_ICON } from "../components/TeamBoard";
+import AarReport from "../components/AarReport";
 
 const STATUS_ICON: Record<string, [string, string]> = {
   done: ["fa-check-circle", "var(--gc-green)"], active: ["fa-circle-notch", "var(--gc-accent)"],
@@ -41,6 +42,21 @@ export default function Reports() {
   }
 
   if (!report) return <div className="center-empty"><span className="spinner" /> Loading report...</div>;
+
+  // Live / guided / immersive-sim reports use a different shape (no precompute `scorecard`) → render
+  // the readable AAR (per-team scorecards, MITRE chain, recommendations) with Print/PDF.
+  if (!(report as any).scorecard) {
+    return (
+      <>
+        <div className="section-header no-print" style={{ display: "flex", justifyContent: "space-between" }}>
+          <div><h1>After-Action Report</h1><p>Cyber-range debrief</p></div>
+          <button className="btn btn-ghost" onClick={() => nav("/reports")}><i className="fa fa-arrow-left" /> All reports</button>
+        </div>
+        <AarReport report={report as any} />
+      </>
+    );
+  }
+
   const sc = report.scorecard, fin = report.financial_impact, kf = report.key_findings;
   const ap = report.attack_path ?? [], pa = report.per_asset ?? [], ce = report.control_effectiveness ?? [];
   const dw = report.dwell_analysis, za = report.zone_analysis ?? [], ct = report.credential_timeline ?? [];

@@ -93,16 +93,25 @@ def test_segment_and_patch_collapse_r():
     assert s.smbv1_patched and s.r_value == 0.0
 
 
-def test_auto_vs_auto_contains():
-    s = ScenarioSim(SID)                      # session None → all seats auto (competent defense)
+def test_auto_off_by_default_does_not_finish():
+    s = ScenarioSim(SID)                      # auto OFF by default → learner-paced, nothing on a timer
+    for _ in range(40):
+        s.tick()
+    assert not s.finished and not s.pending_intents
+
+
+def test_auto_vs_auto_contains_when_enabled():
+    s = ScenarioSim(SID)
+    s.set_auto_enabled(True)                  # opt-in challenge → competent auto-defense contains
     guard = 0
     while not s.finished and guard < 150:
         s.tick(); guard += 1
     assert s.finished and s.outcome == "Contained"
 
 
-def test_telegraph_populates_intents():
-    s = ScenarioSim(SID)                      # all auto
+def test_telegraph_populates_intents_when_enabled():
+    s = ScenarioSim(SID)
+    s.set_auto_enabled(True)
     s.tick()
     assert s.pending_intents                  # at least one seat announced intent
     assert all("label" in v for v in s.pending_intents.values())

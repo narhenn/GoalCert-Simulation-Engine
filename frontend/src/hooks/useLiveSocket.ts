@@ -52,6 +52,7 @@ export function useLiveSocket(sessionId: string | null, playerId: string | null)
     guidedTask: (task_id: string) => send({ action: "guided_task", task_id }),
     runTool: (tool_id: string, params?: Record<string, string>) =>
       send({ action: "run_tool", tool_id, params: params ?? {} }),
+    setSimAuto: (value: boolean) => send({ action: "set_sim_auto", value }),
     conclude: () => send({ action: "conclude" }),
     chat: (text: string) => send({ action: "chat", text }),
   };
