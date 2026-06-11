@@ -15,10 +15,11 @@ export interface StagedCmd {
    the "real hack" feel — no more one-click run. */
 export default function Terminal({ events, termUrl, pending, canPlay, onExecute, error, height = 230,
   prompt = "kali@gc-attacker", title = "kali@gc-attacker — terminal", intro, claimMsg = "claim the Red seat to run tools.",
-  hint = "stage a tool, then type its command…" }:
+  hint = "stage a tool, then type its command…", inflight = [] }:
   { events: any[]; termUrl?: string | null; pending: StagedCmd | null; canPlay: boolean;
     onExecute: (toolId: string, params: Record<string, string>) => void; error?: string | null; height?: number;
-    prompt?: string; title?: string; intro?: ReactNode; claimMsg?: string; hint?: string }) {
+    prompt?: string; title?: string; intro?: ReactNode; claimMsg?: string; hint?: string;
+    inflight?: { command: string; label: string; eta_ticks: number }[] }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(true);
@@ -44,7 +45,7 @@ export default function Terminal({ events, termUrl, pending, canPlay, onExecute,
 
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-  }, [lines.length, scratch.length, open, pending]);
+  }, [lines.length, scratch.length, open, pending, inflight.length]);
   useEffect(() => { if (pending && open) inputRef.current?.focus(); }, [pending, open]);
 
   const echo = (cls: string, text: string) => setScratch((s) => [...s, { cls, text }]);
@@ -119,7 +120,18 @@ export default function Terminal({ events, termUrl, pending, canPlay, onExecute,
             </div>
           ))}
 
-          {pending && (
+          {inflight.map((f, i) => (
+            <div key={"if" + i} className="term-line">
+              <span className="term-prompt">{prompt}:~$ </span>
+              <span className="term-cmd">{f.command}</span>
+              <div style={{ color: "#eab308", marginLeft: 4 }}>
+                <i className="fa fa-circle-notch fa-spin" /> running {f.label}…{" "}
+                {f.eta_ticks > 0 ? `~${f.eta_ticks * 3}s remaining` : "finishing up…"}
+              </div>
+            </div>
+          ))}
+
+          {pending && !inflight.length && (
             <div className="term-stage">
               <i className="fa fa-keyboard" /> type: <span className="term-cmd">{pending.command}</span>
               {pending.targetLabel && <span className="term-target"> · target {pending.targetLabel}</span>}

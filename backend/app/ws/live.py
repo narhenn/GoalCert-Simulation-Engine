@@ -102,8 +102,10 @@ async def live_ws(websocket: WebSocket, session_id: str, player_id: str = "") ->
                     if sim is None:
                         changed, err = False, "not a cyber-range session"
                     else:
-                        ok, reason = sim.run_tool(player.role or "", msg.get("tool_id", ""),
-                                                  msg.get("params") or {})
+                        # begin_tool models real execution time: the command runs for a while before
+                        # its effect lands (auto seats + tests still apply instantly via run_tool).
+                        ok, reason = sim.begin_tool(player.role or "", msg.get("tool_id", ""),
+                                                    msg.get("params") or {})
                         if not ok:
                             changed, err = False, reason
                 elif action == "conclude":

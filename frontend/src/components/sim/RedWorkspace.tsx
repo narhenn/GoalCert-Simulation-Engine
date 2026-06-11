@@ -15,17 +15,17 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
   const red = sim.teams.red;
   const worm = sim.worm;
   const pz = sim.topology.hosts.find((h: any) => h.patient_zero);
+  const inflight = (sim.inflight || []).filter((f: any) => f.team === "red");
+  const busy = inflight.length > 0;
 
   const hostName = (id?: string) => sim.topology.hosts.find((h: any) => h.id === id)?.name;
   const stage = (toolId: string, params: Record<string, string>, command: string, label: string) => {
     const hid = params.host || (params.hosts || "").split(",")[0];
     setPending({ toolId, params, command, label, targetLabel: hostName(hid) });
   };
-  const onToolClick = (t: any) => {
-    if (!canPlay || !t.available) return;
-    if (t.schema && t.schema.length) setTool(t);                  // pick targets first, then stage
-    else stage(t.id, {}, toolCommand(t), t.name);                 // no params → stage right away
-  };
+  // Every step opens its briefing pop-up first (does / how / outcome / the real command) — so the
+  // learner reads what they're about to do before staging it.
+  const onToolClick = (t: any) => { if (canPlay && t.available && !busy) setTool(t); };
   const execute = (toolId: string, params: Record<string, string>) => { runTool(toolId, params); setPending(null); };
 
   const objectives = [
@@ -62,12 +62,13 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
           <div className="ws-card">
             <h3>Kali tools</h3>
             {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-eye" /> spectating — claim Red to act</div>}
-            {canPlay && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-keyboard" /> click a tool to stage its command, then type it in the terminal below.</div>}
+            {canPlay && !busy && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-keyboard" /> click a tool to read its briefing, stage its command, then type it below.</div>}
+            {busy && <div style={{ fontSize: 10.5, color: "#eab308", marginBottom: 8 }}><i className="fa fa-circle-notch fa-spin" /> {inflight[0].label} is running… let it finish.</div>}
             <div style={{ display: "grid", gap: 7 }}>
               {red.tools.map((t: any) => {
                 const staged = pending?.toolId === t.id;
                 return (
-                  <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available}
+                  <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available || busy}
                     style={staged ? { borderColor: "#22d3ee", boxShadow: "0 0 0 1px #22d3ee55" } : undefined}
                     onClick={() => onToolClick(t)} title={t.available ? t.summary : t.reason}>
                     <span className="t-name">
@@ -85,7 +86,7 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
         {/* center: topology */}
         <div style={{ flex: 1, minWidth: 0 }}><TopologyMap sim={sim} /></div>
       </div>
-      <Terminal events={events} termUrl={termUrl} pending={pending} canPlay={canPlay} onExecute={execute} error={error} />
+      <Terminal events={events} termUrl={termUrl} pending={pending} canPlay={canPlay} onExecute={execute} error={error} inflight={inflight} />
       {tool && <ToolWorkspace tool={tool} sim={sim} mode="stage" onRun={runTool}
         onStage={(id, p, cmd) => { stage(id, p, cmd, tool.name); setTool(null); }} onClose={() => setTool(null)} />}
     </div>

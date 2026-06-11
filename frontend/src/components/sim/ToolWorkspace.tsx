@@ -91,12 +91,26 @@ export default function ToolWorkspace({ tool, sim, onRun, onStage, mode = "run",
         ))}
 
         {command && (
-          <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 11.5, color: "#22d3ee", background: "#05080f",
-            border: "1px solid #1e293b", borderRadius: 6, padding: "6px 8px", marginBottom: 6 }}>$ {command}</div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 9, letterSpacing: 1, color: "#64748b", marginBottom: 3, textTransform: "uppercase" }}>
+              Real-world command {tool.kind === "real" ? "· fires live on the Kali range" : "· simulated for training"}
+            </div>
+            <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 11.5, color: "#22d3ee", background: "#05080f",
+              border: `1px solid ${accent}44`, borderRadius: 6, padding: "7px 9px" }}>$ {command}</div>
+          </div>
+        )}
+        {tool.team === "red" && (
+          <div style={{ fontSize: 10.5, color: "#fca5a5", background: "#2a0f12", border: "1px solid #7f1d1d",
+            borderRadius: 6, padding: "6px 9px", marginBottom: 8, lineHeight: 1.5 }}>
+            <i className="fa fa-triangle-exclamation" /> <b>Offensive technique.</b> This is the actual command an
+            attacker uses. Running it against systems you don't own is illegal — here it's a safe, simulated range
+            for learning detection &amp; defense.
+          </div>
         )}
         {mode === "stage" && (
           <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 12 }}>
-            <i className="fa fa-keyboard" /> You'll type this command in the terminal to run it{tool.kind === "real" ? " (fires for real on the Kali range)" : ""}.
+            <i className="fa fa-keyboard" /> You'll <b>type this command</b> in the terminal to run it — then it takes
+            a little time to execute{tool.kind === "real" ? " (fires for real on the Kali range)" : ""}.
           </div>
         )}
         <button className="btn btn-primary" style={{ width: "100%", background: accent, borderColor: accent, opacity: ready ? 1 : 0.5 }}

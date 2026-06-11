@@ -50,6 +50,24 @@ ACTION_LATENCY: dict[str, tuple[int, int]] = {
 }
 RED_ACTION_LATENCY = (1, 2)     # attacker has the initiative — fast, but not perfectly metronomic
 
+# How long a *human-typed* tool takes to actually run (ticks ≈ 3s each), by effect. This is what lets
+# the learner take their time: you type the command, it runs for a while (nmap/netexec are slow, a
+# 200GB exfil is very slow), and only when it *completes* does its effect land and its telemetry fire —
+# so detection genuinely starts after Red's command finishes, not the instant it's clicked.
+EXEC_LATENCY: dict[str, tuple[int, int]] = {
+    # Red — recon and big jobs are slow; precise actions are quicker
+    "reveal_hosts": (4, 7), "mark_vulnerable": (4, 7), "spray": (4, 8), "deliver_phish": (2, 4),
+    "exploit": (2, 4), "infect": (2, 4), "c2_establish": (2, 4), "cred_dump": (3, 5),
+    "persist": (2, 4), "killswitch_check": (1, 3), "start_propagation": (2, 4), "cred_propagation": (3, 5),
+    "exfiltrate": (5, 9), "disable_recovery": (3, 5), "encrypt": (3, 6),
+    # Blue — containment quick, eradication/recovery slower (locating hosts / clean data)
+    "isolate": (2, 4), "segment": (2, 4), "sinkhole": (2, 4), "block_c2": (2, 4), "block_egress": (2, 4),
+    "patch_all": (3, 6), "patch_hosts": (2, 5), "reset_creds": (3, 6), "disable_cred": (2, 5),
+    "protect_backup": (2, 4), "alt_detect": (3, 5), "declare_ir": (1, 3), "restore": (4, 8),
+    # SOC — queries return fairly quickly; a hunt takes longer
+    "view": (1, 3), "triage": (1, 3), "escalate": (1, 2), "hunt": (3, 6),
+}
+
 # Per-scenario narration for the *dynamic* spread tick (the only narration the engine still owns —
 # every other SOC signal is data-driven from the tool's `alert`/`telemetry` fields). Keeps each
 # scenario reading as its own story instead of "WannaCry SMB worm" everywhere.
@@ -120,6 +138,8 @@ class ScenarioSim:
         self.extra_dormant = 0
         self.pending_intents: dict[str, dict] = {}     # role -> {tool_id, params, label, ticks_left}
         self.rng = random.Random()                     # per-session entropy → every match times out differently
+        self.inflight: list[dict] = []                 # human tools mid-execution (running…), complete on a tick
+        self.impact_complete = False                   # Red detonated — aftermath/recovery phase is open
         # Auto-driven seats act ONLY when the host enables this. Off by default so a learner can read,
         # explore tools and act at their own pace — nothing happens on a clock until they make it happen.
         self.auto_enabled = False
@@ -256,6 +276,52 @@ class ScenarioSim:
         self._raise_signals(tool, thost)
         self._check_finish()
         return True, ""
+
+    # ====================================================================== #
+    #  begin_tool — the human entry point: the tool *runs for a while* before it lands
+    # ====================================================================== #
+    def begin_tool(self, team: str, tool_id: str, params: dict | None = None) -> tuple[bool, str]:
+        """Start a human-initiated tool. Unlike the instant `run_tool` (used by tests + auto seats),
+        this models real execution time: the command goes 'running…' for a randomized number of ticks
+        and only *completes* (effect + telemetry) later, on `_advance_inflight`. Lets the learner take
+        their time and ties the defenders' detection clock to when Red's command actually finishes."""
+        if self.finished:
+            return False, "scenario complete"
+        tool = self.tools.get(tool_id)
+        if tool is None or tool.team != team:
+            return False, "unknown tool for this team"
+        if any(f["team"] == team for f in self.inflight):
+            return False, "a tool is already running — let it finish first"
+        ok, reason = self._available(tool)
+        if not ok:
+            return False, reason
+        delay = self._exec_delay(tool)
+        if delay <= 0:
+            return self.run_tool(team, tool_id, params)
+        self.inflight.append({
+            "team": team, "tool_id": tool.id, "params": params or {},
+            "label": tool.name, "command": tool.command_hint or tool.name,
+            "started_tick": self.tick_n, "done_at": self.tick_n + delay, "total": delay,
+        })
+        # a lightweight "running" marker in the timeline (the live output lands on completion)
+        self._emit("running", team, tool.name, f"{tool.command_hint or tool.name} — running…",
+                   sev="info", data={"tool_id": tool.id, "command": tool.command_hint, "running": True})
+        return True, ""
+
+    def _exec_delay(self, tool: TL.Tool) -> int:
+        lo, hi = EXEC_LATENCY.get(tool.effect, (2, 3))
+        return self.rng.randint(lo, hi)
+
+    def _advance_inflight(self) -> bool:
+        """Complete any human tools whose run time has elapsed (their effect + telemetry land now)."""
+        ready = [f for f in self.inflight if f["done_at"] <= self.tick_n]
+        if not ready:
+            return False
+        for f in ready:
+            self.inflight.remove(f)
+            if self.tools.get(f["tool_id"]) is not None:
+                self.run_tool(f["team"], f["tool_id"], f["params"])   # instant apply — the wait already happened
+        return True
 
     def _raise_signals(self, tool: TL.Tool, host: T.Host | None) -> None:
         """Emit the SOC alert + investigation-lens telemetry this tool declares (data-driven)."""
@@ -535,7 +601,8 @@ class ScenarioSim:
         if self.finished:
             return False
         self.tick_n += 1
-        changed = self._propagate()
+        changed = self._advance_inflight()          # complete any human tools whose run time elapsed
+        changed = self._propagate() or changed
         changed = self._auto_step() or changed
         if self._check_finish():
             changed = True
@@ -780,14 +847,25 @@ class ScenarioSim:
     def _check_finish(self) -> bool:
         if self.finished:
             return False
-        # Red's terminal move: impact detonated (encryption) and the spread has settled. This is the
-        # ONLY thing that ends a learner-paced run automatically — so a single Blue click can never
-        # cut the scenario short, and every team has room to explore each phase first.
+        # Red's terminal move: impact detonated (encryption) and the spread has settled.
         impact_done = any(self.tools[t].effect == "encrypt"
                           for t in self.teams["red"].done if t in self.tools)
         if impact_done and not self.propagating:
-            self._finish()
-            return True
+            # In an auto match, conclude. For a human-paced run, DON'T end here — open the aftermath:
+            # the attack succeeded, now let the defenders learn containment / eradication / recovery
+            # before they Conclude. (See snapshot.impact_complete → the "what happens next" trigger.)
+            if self.auto_enabled:
+                self._finish()
+                return True
+            if not self.impact_complete:
+                self.impact_complete = True
+                self._emit("g_phase", "system", "Red's mission complete — now respond",
+                           "Files are encrypted and the attack succeeded. This is where real defenders "
+                           "earn their pay: contain the spread, eradicate the foothold, and recover from "
+                           "backups. Switch to Blue and work the recovery — then Conclude for the report.",
+                           sev="critical", notify=True, data={"aftermath": True})
+                return True
+            return False
         # Checkmate: only in a *running auto* match, auto-conclude once Red is fully neutralised and
         # out of moves (and the defenders actually did something). A solo learner is never auto-ended
         # here — they explore freely and hit Conclude when ready.
@@ -922,6 +1000,10 @@ class ScenarioSim:
         return {
             "scenario_id": self.scenario_id, "tick": self.tick_n, "finished": self.finished,
             "outcome": self.outcome, "auto_enabled": self.auto_enabled, "topology": self.topo.public(),
+            "impact_complete": self.impact_complete,
+            "inflight": [{"team": f["team"], "tool_id": f["tool_id"], "label": f["label"],
+                          "command": f["command"], "eta_ticks": max(0, f["done_at"] - self.tick_n),
+                          "total": f["total"]} for f in self.inflight],
             "worm": {"r_value": self.r_value, "propagating": self.propagating,
                      "kill_switch": self.kill_switch, "segmented": self.segmented,
                      "smbv1_patched": self.smbv1_patched, "backups_safe": self.backups_safe,

@@ -70,6 +70,9 @@ def test_no_defense_is_catastrophic():
     assert s.outcome_band() == "Catastrophic"
     s.run_tool("red", "shadow_delete"); s.run_tool("red", "ransomware")
     s.tick()
+    # human-paced run: detonation opens the aftermath (contain/eradicate/recover) instead of ending
+    assert s.impact_complete and not s.finished
+    s.conclude()
     assert s.finished and s.outcome == "Catastrophic" and s.impacted_total() > 100
 
 

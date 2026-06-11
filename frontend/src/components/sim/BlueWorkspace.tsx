@@ -15,17 +15,15 @@ export default function BlueWorkspace({ sim, canPlay, runTool, events, error }:
   const blue = sim.teams.blue;
   const worm = sim.worm;
   const counts = sim.topology.counts;
+  const inflight = (sim.inflight || []).filter((f: any) => f.team === "blue");
+  const busy = inflight.length > 0;
 
   const hostName = (id?: string) => sim.topology.hosts.find((h: any) => h.id === id)?.name;
   const stage = (toolId: string, params: Record<string, string>, command: string, label: string) => {
     const hid = params.host || (params.hosts || "").split(",")[0];
     setPending({ toolId, params, command, label, targetLabel: hostName(hid) });
   };
-  const onToolClick = (t: any) => {
-    if (!canPlay || !t.available) return;
-    if (t.schema && t.schema.length) setTool(t);                 // pick targets/options first, then stage
-    else stage(t.id, {}, toolCommand(t), t.name);                // no params → stage right away
-  };
+  const onToolClick = (t: any) => { if (canPlay && t.available && !busy) setTool(t); };   // briefing first
   const execute = (toolId: string, params: Record<string, string>) => { runTool(toolId, params); setPending(null); };
 
   // The IR console shows Blue's own actions (its command + simulated result), not Red's.
@@ -57,12 +55,13 @@ export default function BlueWorkspace({ sim, canPlay, runTool, events, error }:
           <div className="ws-card">
             <h3>IR action center · score {blue.score}</h3>
             {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-eye" /> spectating — claim Blue to act</div>}
-            {canPlay && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-keyboard" /> click an action to stage its command, then type it in the console below.</div>}
+            {canPlay && !busy && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-keyboard" /> click an action to read its briefing, stage its command, then type it below.</div>}
+            {busy && <div style={{ fontSize: 10.5, color: "#eab308", marginBottom: 8 }}><i className="fa fa-circle-notch fa-spin" /> {inflight[0].label} is running… let it finish.</div>}
             <div style={{ display: "grid", gap: 7 }}>
               {blue.tools.map((t: any) => {
                 const staged = pending?.toolId === t.id;
                 return (
-                  <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available}
+                  <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available || busy}
                     style={staged ? { borderColor: "#3b82f6", boxShadow: "0 0 0 1px #3b82f655" } : undefined}
                     onClick={() => onToolClick(t)} title={t.available ? t.summary : t.reason}>
                     <span className="t-name">
@@ -90,7 +89,7 @@ export default function BlueWorkspace({ sim, canPlay, runTool, events, error }:
         <div style={{ flex: 1, minWidth: 0 }}><TopologyMap sim={sim} /></div>
       </div>
 
-      <Terminal events={blueEvents} pending={pending} canPlay={canPlay} onExecute={execute} error={error}
+      <Terminal events={blueEvents} pending={pending} canPlay={canPlay} onExecute={execute} error={error} inflight={inflight}
         prompt="blue@ir-console" title="blue@ir-console — incident response"
         claimMsg="claim the Blue seat to run response actions."
         hint="stage a response, then type its command…"

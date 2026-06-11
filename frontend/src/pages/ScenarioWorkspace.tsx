@@ -24,6 +24,8 @@ export default function ScenarioWorkspace() {
   const [meta, setMeta] = useState<any>(null);
   const [lab, setLab] = useState<any>(null);
   const [tab, setTab] = useState<string>("red");
+  const [recoveryMode, setRecoveryMode] = useState(false);   // post-impact: play any seat to learn IR
+  const [resultClosed, setResultClosed] = useState(false);   // dismissed the result overlay to review the range
 
   useEffect(() => { api.guidedScenario(scenarioId).then(setMeta).catch(() => {}); }, [scenarioId]);
   useEffect(() => { api.labStatus().then(setLab).catch(() => {}); }, []);
@@ -94,7 +96,8 @@ export default function ScenarioWorkspace() {
   }
 
   const myRole = sess.role;
-  const canPlay = (t: string) => t === myRole;
+  // In the post-impact recovery phase the learner can step into any seat to practice IR.
+  const canPlay = (t: string) => recoveryMode || t === myRole;
   const events = sim.events || [];
   const termUrl = lab?.terminal_url;
 
@@ -128,8 +131,17 @@ export default function ScenarioWorkspace() {
             <i className={`fa ${sim.auto_enabled ? "fa-robot" : "fa-user"}`} /> Auto-defense {sim.auto_enabled ? "ON" : "OFF"}
           </button>
           {!sim.finished && <button className="btn" onClick={live.conclude}><i className="fa fa-flag-checkered" /> Conclude</button>}
+          {sim.finished && resultClosed && <button className="btn" onClick={() => setResultClosed(false)}><i className="fa fa-file-lines" /> Result</button>}
         </div>
       </div>
+
+      {/* recovery-phase banner — Red already won; you're now learning incident response on any seat */}
+      {recoveryMode && !sim.finished && (
+        <div className="intent-banner" style={{ borderColor: "#3b82f6", color: "#93c5fd" }}>
+          <i className="fa fa-shield-halved" /> <b>Recovery phase</b> — Red's attack succeeded. You can now act as <b>any</b> team:
+          contain remaining footholds, eradicate the vector, and restore impacted hosts from backup. Hit <b>Conclude</b> when done.
+        </div>
+      )}
 
       {/* telegraph reaction-window banners (auto seats other than yours) */}
       {Object.entries(sim.pending_intents || {}).filter(([r]) => r !== myRole).map(([r, i]: any) => (
@@ -148,7 +160,28 @@ export default function ScenarioWorkspace() {
         </div>
       </div>
 
-      {sim.finished && <FinishOverlay sim={sim} report={snap.report} onQuit={quit} />}
+      {/* Red won (human-paced): offer to step into the defender's seat for the IR lesson, or conclude */}
+      {sim.impact_complete && !sim.finished && !recoveryMode && (
+        <div style={{ position: "fixed", inset: 0, background: "#000b", zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="ws-card" style={{ width: 500, textAlign: "center", borderColor: "#ef4444" }}>
+            <div style={{ fontSize: 12, color: "#8aa0c2", letterSpacing: 1 }}>RED'S MISSION ACCOMPLISHED</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: "#ef4444", margin: "8px 0" }}><i className="fa fa-skull-crossbones" /> Files Encrypted</div>
+            <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.65, marginBottom: 16 }}>
+              The attack succeeded — but the story isn't over. <b>This is where real defenders earn their pay.</b>{" "}
+              Step into the Blue seat to <b style={{ color: "#3b82f6" }}>contain</b> the remaining footholds,{" "}
+              <b style={{ color: "#3b82f6" }}>eradicate</b> the vector, and <b style={{ color: "#3b82f6" }}>recover</b> impacted hosts from backups.
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+              <button className="btn btn-primary" onClick={() => { setRecoveryMode(true); setTab("blue"); }}>
+                <i className="fa fa-shield-halved" /> See what happens next — work the recovery
+              </button>
+              <button className="btn" onClick={live.conclude}><i className="fa fa-flag-checkered" /> Conclude &amp; view report</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sim.finished && !resultClosed && <FinishOverlay sim={sim} report={snap.report} onQuit={quit} onClose={() => setResultClosed(true)} />}
     </div>
   );
 }
@@ -217,7 +250,7 @@ function OutcomeBadge({ band, finished, outcome }: { band: string; finished: boo
 }
 
 /* ---------- finish overlay ---------- */
-function FinishOverlay({ sim, report, onQuit }: { sim: any; report: any; onQuit: () => void }) {
+function FinishOverlay({ sim, report, onQuit, onClose }: { sim: any; report: any; onQuit: () => void; onClose: () => void }) {
   const [showReport, setShowReport] = useState(false);
   const c = sim.outcome === "Contained" ? "#22c55e" : sim.outcome === "Degraded" ? "#f59e0b" : "#ef4444";
 
@@ -233,7 +266,10 @@ function FinishOverlay({ sim, report, onQuit }: { sim: any; report: any; onQuit:
   }
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000a", zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div className="ws-card" style={{ width: 460, textAlign: "center", borderColor: c }}>
+      <div className="ws-card" style={{ width: 460, textAlign: "center", borderColor: c, position: "relative" }}>
+        <button className="btn" onClick={onClose} title="Close — stay in the range" style={{ position: "absolute", top: 8, right: 8, padding: "2px 8px" }}>
+          <i className="fa fa-xmark" />
+        </button>
         <div style={{ fontSize: 12, color: "#8aa0c2" }}>Scenario complete</div>
         <div style={{ fontSize: 30, fontWeight: 800, color: c, margin: "6px 0" }}>{sim.outcome}</div>
         <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 12 }}>
@@ -244,6 +280,7 @@ function FinishOverlay({ sim, report, onQuit }: { sim: any; report: any; onQuit:
         </div>}
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
           {report && <button className="btn btn-primary" onClick={() => setShowReport(true)}><i className="fa fa-file-lines" /> View full report</button>}
+          <button className="btn" onClick={onClose}><i className="fa fa-magnifying-glass" /> Stay &amp; review the range</button>
           <button className="btn" onClick={onQuit}><i className="fa fa-rotate-right" /> Back to scenarios</button>
         </div>
         {report && <div style={{ fontSize: 11, color: "#8aa0c2", marginTop: 8 }}><i className="fa fa-floppy-disk" /> Saved to Reports &amp; AAR (open it there to view or print as PDF).</div>}

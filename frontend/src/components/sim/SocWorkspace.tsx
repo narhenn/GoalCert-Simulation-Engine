@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Terminal, { StagedCmd } from "./Terminal";
-import { SEV_COLOR, fmtT, toolCommand } from "./shared";
+import ToolWorkspace from "./ToolWorkspace";
+import { SEV_COLOR, fmtT } from "./shared";
 
 /* SOC — "I am an analyst." Alert queue (triage → escalate) on the left; a real SIEM console on the
    right where the analyst STAGES a data-source / hunt query and TYPES it to run — matching detections
@@ -8,16 +9,19 @@ import { SEV_COLOR, fmtT, toolCommand } from "./shared";
 export default function SocWorkspace({ sim, canPlay, runTool, events }:
   { sim: any; canPlay: boolean; runTool: (id: string, p?: Record<string, string>) => void; events: any[] }) {
   const [pending, setPending] = useState<StagedCmd | null>(null);
+  const [tool, setTool] = useState<any>(null);
   const soc = sim.teams.soc;
   const alerts: any[] = sim.alerts || [];
   const detections = events.filter((e) => e.kind === "g_telemetry").slice(-8).reverse();
+  const inflight = (sim.inflight || []).filter((f: any) => f.team === "soc");
+  const busy = inflight.length > 0;
 
   // SOC palette = the queryable data-sources + hunt (triage/escalate live in the alert feed as buttons)
   const queries = (soc.tools || []).filter((t: any) => !(t.schema || []).some((f: any) => f.type === "alert"));
-  const act = (toolId: string, params?: Record<string, string>) => canPlay && runTool(toolId, params);
-  const stage = (t: any) => { if (canPlay && t.available) setPending({ toolId: t.id, params: {}, command: toolCommand(t), label: t.name }); };
+  const act = (toolId: string, params?: Record<string, string>) => canPlay && !busy && runTool(toolId, params);
+  const stage = (toolId: string, command: string, label: string) => setPending({ toolId, params: {}, command, label });
   const execute = (toolId: string, params: Record<string, string>) => { runTool(toolId, params); setPending(null); };
-  const socEvents = events.filter((e) => e.role === "soc" && e.kind === "response");
+  const socEvents = events.filter((e) => e.role === "soc" && (e.kind === "response" || e.kind === "running"));
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 12, height: "100%", padding: 12, minHeight: 0 }}>
@@ -68,13 +72,14 @@ export default function SocWorkspace({ sim, canPlay, runTool, events }:
         {/* query palette */}
         <div className="ws-card" style={{ flexShrink: 0 }}>
           <h3>SIEM queries &amp; hunts</h3>
-          {canPlay && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 6 }}><i className="fa fa-keyboard" /> click a source to stage its query, then type it in the console.</div>}
+          {canPlay && !busy && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 6 }}><i className="fa fa-keyboard" /> click a source to read its briefing, stage the query, then type it below.</div>}
+          {busy && <div style={{ fontSize: 10.5, color: "#eab308", marginBottom: 6 }}><i className="fa fa-circle-notch fa-spin" /> {inflight[0].label} is running…</div>}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {queries.map((t: any) => {
               const staged = pending?.toolId === t.id;
               return (
-                <button key={t.id} className={"btn" + (staged ? " btn-primary" : "")} disabled={!canPlay || !t.available}
-                  style={{ fontSize: 11 }} onClick={() => stage(t)} title={t.available ? t.summary : t.reason}>
+                <button key={t.id} className={"btn" + (staged ? " btn-primary" : "")} disabled={!canPlay || !t.available || busy}
+                  style={{ fontSize: 11 }} onClick={() => setTool(t)} title={t.available ? t.summary : t.reason}>
                   <i className={`fa ${t.effect === "hunt" ? "fa-crosshairs" : "fa-magnifying-glass"}`} /> {t.name}
                   {staged && <span style={{ marginLeft: 4, fontSize: 8 }}>↓</span>}
                 </button>
@@ -85,13 +90,16 @@ export default function SocWorkspace({ sim, canPlay, runTool, events }:
 
         {/* the typed SIEM console */}
         <div style={{ flex: 1, minHeight: 0 }}>
-          <Terminal events={socEvents} pending={pending} canPlay={canPlay} onExecute={execute} height={320}
+          <Terminal events={socEvents} pending={pending} canPlay={canPlay} onExecute={execute} height={320} inflight={inflight}
             prompt="soc@siem" title="soc@siem — investigation console"
             claimMsg="claim the SOC seat to run queries."
             hint="stage a query, then type it to search…"
             intro={<>SIEM console — stage a data source above, then <b style={{ color: "#94a3b8" }}>type its query</b> to search the index. Matching detections stream back as results.</>} />
         </div>
       </div>
+
+      {tool && <ToolWorkspace tool={tool} sim={sim} mode="stage" onRun={runTool}
+        onStage={(id, _p, cmd) => { stage(id, cmd, tool.name); setTool(null); }} onClose={() => setTool(null)} />}
     </div>
   );
 }
