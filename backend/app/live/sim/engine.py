@@ -38,34 +38,34 @@ ROLES = ("soc", "blue", "red")  # defenders telegraph/act before Red each cycle
 #  Both are sampled as inclusive (min,max) tick ranges per run, so no two matches play out the same.
 # --------------------------------------------------------------------------- #
 DETECT_LATENCY: dict[str, tuple[int, int]] = {
-    "critical": (1, 3), "high": (2, 5), "medium": (4, 9), "low": (8, 16), "info": (10, 20),
+    "critical": (2, 5), "high": (4, 8), "medium": (7, 13), "low": (12, 20), "info": (15, 24),
 }
 ACTION_LATENCY: dict[str, tuple[int, int]] = {
-    # SOC
-    "triage": (1, 3), "escalate": (1, 2), "hunt": (3, 6), "view": (1, 2),
-    # Blue — containment is quick-ish, eradication slower, recovery slowest (locating clean data)
-    "isolate": (2, 5), "segment": (2, 5), "sinkhole": (2, 5), "block_c2": (2, 5), "block_egress": (2, 5),
-    "patch_all": (3, 7), "patch_hosts": (3, 7), "reset_creds": (3, 7), "disable_cred": (3, 7),
-    "protect_backup": (2, 4), "alt_detect": (2, 4), "declare_ir": (1, 3), "restore": (4, 9),
+    # SOC — querying is quicker, hunting is slow
+    "triage": (3, 6), "escalate": (2, 5), "hunt": (6, 10), "view": (3, 5),
+    # Blue — containment quick-ish, eradication slower, recovery slowest (locating clean data)
+    "isolate": (5, 8), "segment": (5, 8), "sinkhole": (5, 8), "block_c2": (5, 8), "block_egress": (5, 8),
+    "patch_all": (6, 10), "patch_hosts": (5, 9), "reset_creds": (6, 10), "disable_cred": (5, 9),
+    "protect_backup": (4, 7), "alt_detect": (5, 8), "declare_ir": (3, 5), "restore": (7, 11),
 }
-RED_ACTION_LATENCY = (1, 2)     # attacker has the initiative — fast, but not perfectly metronomic
+RED_ACTION_LATENCY = (2, 4)     # attacker has the initiative — fastest, but not perfectly metronomic
 
 # How long a *human-typed* tool takes to actually run (ticks ≈ 3s each), by effect. This is what lets
 # the learner take their time: you type the command, it runs for a while (nmap/netexec are slow, a
 # 200GB exfil is very slow), and only when it *completes* does its effect land and its telemetry fire —
 # so detection genuinely starts after Red's command finishes, not the instant it's clicked.
 EXEC_LATENCY: dict[str, tuple[int, int]] = {
-    # Red — recon and big jobs are slow; precise actions are quicker
-    "reveal_hosts": (4, 7), "mark_vulnerable": (4, 7), "spray": (4, 8), "deliver_phish": (2, 4),
-    "exploit": (2, 4), "infect": (2, 4), "c2_establish": (2, 4), "cred_dump": (3, 5),
-    "persist": (2, 4), "killswitch_check": (1, 3), "start_propagation": (2, 4), "cred_propagation": (3, 5),
-    "exfiltrate": (5, 9), "disable_recovery": (3, 5), "encrypt": (3, 6),
-    # Blue — containment quick, eradication/recovery slower (locating hosts / clean data)
-    "isolate": (2, 4), "segment": (2, 4), "sinkhole": (2, 4), "block_c2": (2, 4), "block_egress": (2, 4),
-    "patch_all": (3, 6), "patch_hosts": (2, 5), "reset_creds": (3, 6), "disable_cred": (2, 5),
-    "protect_backup": (2, 4), "alt_detect": (3, 5), "declare_ir": (1, 3), "restore": (4, 8),
+    # Red — recon and big jobs are slow; precise actions a touch quicker (all in a balanced 4–13 band)
+    "reveal_hosts": (6, 10), "mark_vulnerable": (6, 10), "spray": (8, 12), "deliver_phish": (5, 8),
+    "exploit": (5, 8), "infect": (5, 8), "c2_establish": (5, 8), "cred_dump": (6, 9),
+    "persist": (5, 8), "killswitch_check": (4, 7), "start_propagation": (6, 9), "cred_propagation": (6, 9),
+    "exfiltrate": (9, 13), "disable_recovery": (6, 9), "encrypt": (7, 10),
+    # Blue — containment quick-ish, eradication/recovery slower (locating hosts / clean data)
+    "isolate": (5, 8), "segment": (5, 8), "sinkhole": (5, 8), "block_c2": (5, 8), "block_egress": (5, 8),
+    "patch_all": (6, 9), "patch_hosts": (5, 8), "reset_creds": (6, 9), "disable_cred": (5, 8),
+    "protect_backup": (5, 7), "alt_detect": (5, 8), "declare_ir": (4, 6), "restore": (7, 11),
     # SOC — queries return fairly quickly; a hunt takes longer
-    "view": (1, 3), "triage": (1, 3), "escalate": (1, 2), "hunt": (3, 6),
+    "view": (3, 5), "triage": (4, 6), "escalate": (3, 5), "hunt": (6, 9),
 }
 
 # Per-scenario narration for the *dynamic* spread tick (the only narration the engine still owns —
