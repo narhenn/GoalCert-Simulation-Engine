@@ -11,6 +11,7 @@ dangerous (worm spread, encryption, shadow deletion) ever touches the lab.
 """
 from __future__ import annotations
 
+import random
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -21,8 +22,33 @@ from . import tools as TL
 if TYPE_CHECKING:
     from ..session import LiveSession
 
-AUTO_EVERY = 3                  # ticks between an auto seat's actions = the telegraph/reaction window
+AUTO_EVERY = 3                  # legacy fallback reaction window (ticks); real delays are now per-action
 ROLES = ("soc", "blue", "red")  # defenders telegraph/act before Red each cycle
+
+# --------------------------------------------------------------------------- #
+#  Realistic, *non-deterministic* defender timing (each tick ≈ 3s).
+#
+#  Two delays make auto defenders lag Red instead of shadowing him in lockstep:
+#   1) DETECT_LATENCY — mean-time-to-detect: how long before the auto-SOC even *notices* a queued
+#      alert (and can start triaging it). High-fidelity signals are seen fast; low-fidelity ones take
+#      a long time and are often missed entirely. This is the "you have time before they detect you".
+#   2) ACTION_LATENCY — processing / locating time once a seat decides to act (triaging, locating the
+#      compromised host to isolate, finding the clean backup to restore, pushing a fleet-wide change…).
+#
+#  Both are sampled as inclusive (min,max) tick ranges per run, so no two matches play out the same.
+# --------------------------------------------------------------------------- #
+DETECT_LATENCY: dict[str, tuple[int, int]] = {
+    "critical": (1, 3), "high": (2, 5), "medium": (4, 9), "low": (8, 16), "info": (10, 20),
+}
+ACTION_LATENCY: dict[str, tuple[int, int]] = {
+    # SOC
+    "triage": (1, 3), "escalate": (1, 2), "hunt": (3, 6), "view": (1, 2),
+    # Blue — containment is quick-ish, eradication slower, recovery slowest (locating clean data)
+    "isolate": (2, 5), "segment": (2, 5), "sinkhole": (2, 5), "block_c2": (2, 5), "block_egress": (2, 5),
+    "patch_all": (3, 7), "patch_hosts": (3, 7), "reset_creds": (3, 7), "disable_cred": (3, 7),
+    "protect_backup": (2, 4), "alt_detect": (2, 4), "declare_ir": (1, 3), "restore": (4, 9),
+}
+RED_ACTION_LATENCY = (1, 2)     # attacker has the initiative — fast, but not perfectly metronomic
 
 # Per-scenario narration for the *dynamic* spread tick (the only narration the engine still owns —
 # every other SOC signal is data-driven from the tool's `alert`/`telemetry` fields). Keeps each
@@ -93,6 +119,7 @@ class ScenarioSim:
         self.extra_impacted = 0
         self.extra_dormant = 0
         self.pending_intents: dict[str, dict] = {}     # role -> {tool_id, params, label, ticks_left}
+        self.rng = random.Random()                     # per-session entropy → every match times out differently
         # Auto-driven seats act ONLY when the host enables this. Off by default so a learner can read,
         # explore tools and act at their own pace — nothing happens on a clock until they make it happen.
         self.auto_enabled = False
@@ -117,9 +144,12 @@ class ScenarioSim:
         return ev
 
     def _alert(self, label: str, host: T.Host | None, sev: str, mitre: str = "") -> None:
+        # MTTD: the alert is queued now, but won't be *noticed* (auto-triageable) until detect_at.
+        lo, hi = DETECT_LATENCY.get(sev, (4, 9))
         a = {"id": f"al{self.alert_seq}", "t": self._t(), "label": label, "mitre": mitre,
              "severity": sev, "host_id": host.id if host else None,
-             "host_name": host.name if host else None, "status": "new"}
+             "host_name": host.name if host else None, "status": "new",
+             "raised_tick": self.tick_n, "detect_at": self.tick_n + self.rng.randint(lo, hi)}
         self.alert_seq += 1
         self.alerts.append(a)
         self._emit("alert", "soc", f"ALERT: {label}",
@@ -584,11 +614,13 @@ class ScenarioSim:
             if intent is None:
                 intent = self._plan(role)
                 if intent is not None:
-                    intent["ticks_left"] = AUTO_EVERY
+                    delay = self._action_delay(role, intent)   # realistic, randomized processing time
+                    intent["ticks_left"] = delay
+                    intent["eta_ticks"] = delay
                     self.pending_intents[role] = intent
                     self._emit("g_intent", role, f"{role.upper()} will {intent['label']}",
-                               f"in ~{AUTO_EVERY * 3}s — act first to change the outcome",
-                               sev="medium", data={"role": role, "eta_ticks": AUTO_EVERY})
+                               f"in ~{delay * 3}s — act first to change the outcome",
+                               sev="medium", data={"role": role, "eta_ticks": delay})
                 continue
             intent["ticks_left"] -= 1
             if intent["ticks_left"] <= 0:
@@ -597,9 +629,26 @@ class ScenarioSim:
                 changed = changed or ok
         return changed
 
+    def _action_delay(self, role: str, intent: dict) -> int:
+        """How many ticks this auto action takes to complete — sampled per action so defenders lag Red
+        by a realistic, variable amount (identification + processing + locating the target/data)."""
+        if role == "red":
+            return self.rng.randint(*RED_ACTION_LATENCY)
+        tool = self.tools.get(intent.get("tool_id", ""))
+        lo, hi = ACTION_LATENCY.get(tool.effect if tool else "", (2, 4))
+        return self.rng.randint(lo, hi)
+
     def _avail_effect(self, team: str, effect: str) -> TL.Tool | None:
         return next((t for t in self.tools.values()
                      if t.team == team and t.effect == effect and self._available(t)[0]), None)
+
+    def _blue_engaged(self) -> bool:
+        """IR isn't standing over the attacker's shoulder — the auto-Blue seat stays idle until the
+        incident is actually *known*: the SOC has noticed an alert, escalated an incident, or Blue has
+        already started responding. This is the window where Red gets to work undetected."""
+        if self.incident_declared or self.teams["blue"].done:
+            return True
+        return any(self.tick_n >= a.get("detect_at", 0) for a in self.alerts)
 
     def _intent_for(self, t: TL.Tool) -> dict | None:
         """Build {tool_id, params, label} for an auto seat — auto-fills the tool's first target."""
@@ -619,10 +668,12 @@ class ScenarioSim:
                 params[f.key] = ",".join(h.id for h in hs[:5])
             elif f.type == "alert":
                 want = "new" if f.filter == "new" else "triaged"
-                a = next((x for x in self.alerts if x["status"] == want), None)
-                if a is None:
+                pool = [x for x in self.alerts if x["status"] == want]
+                if want == "new":   # auto-SOC can only triage alerts it has actually *noticed* (MTTD)
+                    pool = [x for x in pool if self.tick_n >= x.get("detect_at", 0)]
+                if not pool:
                     return None
-                params[f.key] = a["id"]
+                params[f.key] = pool[0]["id"]
             elif f.default:
                 params[f.key] = f.default
         label = t.name
@@ -645,22 +696,32 @@ class ScenarioSim:
                         return intent
             return None
         if role == "soc":
-            for eff in ("triage", "escalate"):           # clear the queue: validate then escalate
+            # validate then escalate — but only alerts the analyst has *noticed* (detect_at); an
+            # alert can sit in the queue, unnoticed, while Red keeps working (intent may be None).
+            for eff in ("triage", "escalate"):
                 t = self._avail_effect("soc", eff)
                 if t:
-                    return self._intent_for(t)
+                    intent = self._intent_for(t)
+                    if intent:
+                        return intent
             # hunt only when there's an undetected live foothold to find
             if any(h.state in T.LIVE_INFECTED and not any(al["host_id"] == h.id for al in self.alerts)
                    for h in self.topo.hosts.values()):
                 t = self._avail_effect("soc", "hunt")
                 if t:
-                    return self._intent_for(t)
+                    intent = self._intent_for(t)
+                    if intent:
+                        return intent
             for t in TL.catalog(self.scenario_id):       # otherwise keep an investigation lens warm
                 if (t.team == "soc" and t.effect == "view" and t.id not in self.teams["soc"].done
                         and self._available(t)[0]):
-                    return self._intent_for(t)
+                    intent = self._intent_for(t)
+                    if intent:
+                        return intent
             return None
         if role == "blue":
+            if not self._blue_engaged():   # IR not yet dispatched — Red still operating undetected
+                return None
             # decisive containment first (by effect + state), then eradication, then recovery
             order: list[str] = []
             if self.kill_switch == "armed":
@@ -868,7 +929,10 @@ class ScenarioSim:
                      "extra_infected": self.extra_infected, "extra_impacted": self.extra_impacted,
                      "financial_loss": self.financial_loss(), "outcome_band": self.outcome_band()},
             "teams": {r: {"score": self.teams[r].score, "tools": self.unlocked(r)} for r in ("red", "soc", "blue")},
-            "alerts": list(self.alerts),
+            # `noticed` = the auto-SOC's mean-time-to-detect has elapsed (a human can triage anytime);
+            # `detect_in` = ticks until the auto-SOC would notice a still-unnoticed alert.
+            "alerts": [{**a, "noticed": self.tick_n >= a.get("detect_at", 0),
+                        "detect_in": max(0, a.get("detect_at", 0) - self.tick_n)} for a in self.alerts],
             "incident_declared": sorted(self.incident_declared),
             "pending_intents": {r: {"label": i["label"], "ticks_left": i.get("ticks_left", 0)}
                                 for r, i in self.pending_intents.items()},

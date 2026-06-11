@@ -33,6 +33,9 @@ export default function SocWorkspace({ sim, canPlay, runTool, events }:
               <div style={{ fontSize: 10.5, color: "#8aa0c2" }}>
                 {fmtT(a.t)} · {a.severity.toUpperCase()}{a.host_name ? ` · ${a.host_name}` : ""}{a.mitre ? ` · ${a.mitre}` : ""}
               </div>
+              {a.status === "new" && (a.noticed
+                ? <div style={{ fontSize: 10, color: "#22c55e", marginTop: 3 }}><i className="fa fa-eye" /> detected — ready to triage</div>
+                : <div style={{ fontSize: 10, color: "#64748b", marginTop: 3 }}><i className="fa fa-hourglass-half fa-spin" style={{ animationDuration: "2s" }} /> below the noise floor · auto-detect in ~{(a.detect_in ?? 0) * 3}s <span style={{ color: "#475569" }}>(triage now to beat MTTD)</span></div>)}
               <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                 {a.status === "new" && <button className="btn" style={{ fontSize: 10, padding: "2px 8px" }} disabled={!canPlay}
                   onClick={() => act(triageId(soc), { alert: a.id })}>Triage</button>}

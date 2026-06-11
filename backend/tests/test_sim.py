@@ -100,13 +100,44 @@ def test_auto_off_by_default_does_not_finish():
     assert not s.finished and not s.pending_intents
 
 
-def test_auto_vs_auto_contains_when_enabled():
+def test_auto_vs_auto_resolves_dynamically():
+    # Auto defense is now non-deterministic (randomized detect/processing latency), so the outcome
+    # varies run to run — but every auto match must still RESOLVE to a valid band, never hang.
+    for _ in range(8):
+        s = ScenarioSim(SID)
+        s.set_auto_enabled(True)
+        guard = 0
+        while not s.finished and guard < 400:
+            s.tick(); guard += 1
+        assert s.finished, "auto-vs-auto failed to resolve"
+        assert s.outcome in ("Contained", "Degraded", "Catastrophic")
+
+
+def test_auto_soc_respects_detection_latency():
+    # The whole point: the auto-SOC has a mean-time-to-detect — it cannot triage an alert the instant
+    # it fires. A low-fidelity signal sits in the queue, unnoticed, while Red keeps working.
     s = ScenarioSim(SID)
-    s.set_auto_enabled(True)                  # opt-in challenge → competent auto-defense contains
-    guard = 0
-    while not s.finished and guard < 150:
-        s.tick(); guard += 1
-    assert s.finished and s.outcome == "Contained"
+    s.set_auto_enabled(True)
+    s._alert("test low-fidelity signal", None, "low")
+    a = s.alerts[-1]
+    assert a["detect_at"] > a["raised_tick"]                 # MTTD exists (latency >= 1 tick)
+    while s.tick_n < a["detect_at"] and not s.finished:
+        s.tick()
+        assert a["status"] == "new", "auto-SOC triaged a signal before its detection time"
+
+
+def test_auto_action_delays_are_variable():
+    # processing/locating time is randomized, not a fixed cadence → telegraphed ETAs should vary
+    etas = set()
+    for _ in range(12):
+        s = ScenarioSim(SID)
+        s.set_auto_enabled(True)
+        for _ in range(30):
+            s.tick()
+            etas.update(i.get("eta_ticks", 0) for i in s.pending_intents.values())
+            if s.finished:
+                break
+    assert len(etas - {0}) >= 3, f"auto action ETAs not varied enough: {sorted(etas)}"
 
 
 def test_telegraph_populates_intents_when_enabled():
