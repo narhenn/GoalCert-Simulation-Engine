@@ -47,6 +47,9 @@ async def live_ws(websocket: WebSocket, session_id: str, player_id: str = "") ->
             with manager.lock(session_id):
                 if action == "claim_role":
                     session.claim_role(player_id, msg.get("role", ""))
+                    sim = getattr(session, "sim", None)
+                    if sim is not None:        # teach/practice: the chosen seat is the functional one
+                        sim.set_human_role(player.role)
                 elif action == "set_profile":
                     if player_id == session.host_id or player.role == "red":
                         session.set_profile(msg.get("profile", ""))

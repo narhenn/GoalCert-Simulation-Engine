@@ -41,22 +41,22 @@ export default function ToolWorkspace({ tool, sim, onRun, onStage, mode = "run",
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <span style={{ color: accent, fontWeight: 700, fontSize: 16 }}>{tool.name}</span>
           {tool.kind === "real" && <span style={{ fontSize: 9, color: "#22d3ee", border: "1px solid #22d3ee66", borderRadius: 4, padding: "0 5px" }}>REAL TOOL</span>}
-          <span style={{ marginLeft: "auto", fontSize: 10, color: "#8aa0c2" }}>{tool.stage}</span>
+          <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--gc-muted)" }}>{tool.stage}</span>
           <button className="btn" style={{ padding: "1px 7px" }} onClick={onClose}><i className="fa fa-xmark" /></button>
         </div>
 
         <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
           {/* LEFT — briefing, target selection, the action button */}
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-            <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.55, display: "grid", gap: 5, marginBottom: 12 }}>
-              <div><b style={{ color: "#93a4bd" }}>Does:</b> {tool.does}</div>
-              <div><b style={{ color: "#93a4bd" }}>How:</b> {tool.how}</div>
-              <div><b style={{ color: "#93a4bd" }}>Outcome:</b> {tool.outcome}</div>
+            <div style={{ fontSize: 12, color: "var(--gc-text2)", lineHeight: 1.55, display: "grid", gap: 5, marginBottom: 12 }}>
+              <div><b style={{ color: "var(--gc-muted)" }}>Does:</b> {tool.does}</div>
+              <div><b style={{ color: "var(--gc-muted)" }}>How:</b> {tool.how}</div>
+              <div><b style={{ color: "var(--gc-muted)" }}>Outcome:</b> {tool.outcome}</div>
             </div>
 
             {(tool.schema || []).map((f: any) => (
               <div key={f.key} style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: "#93a4bd", marginBottom: 4 }}>{f.label}</div>
+                <div style={{ fontSize: 11, color: "var(--gc-muted)", marginBottom: 4 }}>{f.label}</div>
                 {f.type === "select" && (
                   <select className="form-select" value={params[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} style={{ width: "100%" }}>
                     {f.options.map((o: [string, string]) => <option key={o[0]} value={o[0]}>{o[1]}</option>)}
@@ -69,7 +69,7 @@ export default function ToolWorkspace({ tool, sim, onRun, onStage, mode = "run",
                   </select>
                 )}
                 {f.type === "hosts" && (
-                  <div style={{ display: "grid", gap: 4, maxHeight: 150, overflowY: "auto", border: "1px solid #1e293b", borderRadius: 6, padding: 6 }}>
+                  <div style={{ display: "grid", gap: 4, maxHeight: 150, overflowY: "auto", border: "1px solid var(--gc-border)", borderRadius: 6, padding: 6 }}>
                     {hostsForFilter(hosts, f.filter).map((h) => {
                       const sel = (params[f.key] || "").split(",").filter(Boolean);
                       const on = sel.includes(h.id);
@@ -108,10 +108,10 @@ export default function ToolWorkspace({ tool, sim, onRun, onStage, mode = "run",
           </div>
 
           {/* RIGHT — the real-world command(s) + warning, on the immediate right */}
-          <div style={{ width: 300, flexShrink: 0, borderLeft: "1px solid #1e293b", paddingLeft: 16,
+          <div style={{ width: 300, flexShrink: 0, borderLeft: "1px solid var(--gc-border)", paddingLeft: 16,
             display: "flex", flexDirection: "column", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 9, letterSpacing: 1, color: "#94a3b8", marginBottom: 5, textTransform: "uppercase", fontWeight: 700 }}>
+              <div style={{ fontSize: 9, letterSpacing: 1, color: "var(--gc-muted)", marginBottom: 5, textTransform: "uppercase", fontWeight: 700 }}>
                 <i className="fa fa-terminal" /> Real-world command
               </div>
               {command
@@ -127,28 +127,28 @@ export default function ToolWorkspace({ tool, sim, onRun, onStage, mode = "run",
 
             {mitre.length > 0 && (
               <div>
-                <div style={{ fontSize: 9, letterSpacing: 1, color: "#94a3b8", marginBottom: 4, textTransform: "uppercase", fontWeight: 700 }}>MITRE ATT&amp;CK</div>
+                <div style={{ fontSize: 9, letterSpacing: 1, color: "var(--gc-muted)", marginBottom: 4, textTransform: "uppercase", fontWeight: 700 }}>MITRE ATT&amp;CK</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {mitre.map((m) => <span key={m} style={{ fontSize: 10, color: "#cbd5e1", border: "1px solid #334155", borderRadius: 4, padding: "1px 5px" }}>{m}</span>)}
+                  {mitre.map((m) => <span key={m} style={{ fontSize: 10, color: "var(--gc-text2)", border: "1px solid var(--gc-border2)", borderRadius: 4, padding: "1px 5px" }}>{m}</span>)}
                 </div>
               </div>
             )}
 
             {tool.team === "red"
-              ? <div style={{ fontSize: 10.5, color: "#fca5a5", background: "#2a0f12", border: "1px solid #7f1d1d",
+              ? <div style={{ fontSize: 10.5, color: "#b91c1c", background: "#fef2f2", border: "1px solid #7f1d1d",
                   borderRadius: 6, padding: "8px 9px", lineHeight: 1.5, marginTop: "auto" }}>
                   <i className="fa fa-triangle-exclamation" /> <b>Offensive technique.</b> This is the actual command an
                   attacker runs. Using it against systems you don't own is illegal — here it's a safe, simulated range
                   for learning detection &amp; defense.
                 </div>
-              : <div style={{ fontSize: 10.5, color: "#93c5fd", background: "#0b1c2e", border: "1px solid #1e3a5f",
+              : <div style={{ fontSize: 10.5, color: "#1d4ed8", background: "#eff6ff", border: "1px solid #1e3a5f",
                   borderRadius: 6, padding: "8px 9px", lineHeight: 1.5, marginTop: "auto" }}>
                   <i className="fa fa-shield-halved" /> <b>Defender action.</b> This is the real command a {tool.team === "soc" ? "SOC analyst" : "responder"} would
                   run. Learn what it does and when to use it.
                 </div>}
 
             {mode === "stage" && (
-              <div style={{ fontSize: 10, color: "#8aa0c2" }}>
+              <div style={{ fontSize: 10, color: "var(--gc-muted)" }}>
                 <i className="fa fa-keyboard" /> You'll <b>type this</b> in the terminal — it then takes a little time to execute.
               </div>
             )}

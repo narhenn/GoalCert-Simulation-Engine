@@ -284,8 +284,8 @@ def _to_run_dict(sim: "ScenarioSim") -> dict:
     return {
         "scenario_id": sim.scenario_id, "scenario_name": name, "focus_role": "blue",
         "duration_s": max(1, sim._t()), "events": events,
-        "scores": {"red": sim.teams["red"].score, "blue": sim.teams["blue"].score,
-                   "soc": sim.teams["soc"].score},
+        "scores": {"red": sim.team_score("red"), "blue": sim.team_score("blue"),
+                   "soc": sim.team_score("soc")},
         "kpis": kpis, "summary": summary, "objectives": objectives,
         "environment": [snap(h, True) for h in topo.hosts.values()],
         "final_assets": [snap(h, False) for h in topo.hosts.values()],
@@ -314,6 +314,26 @@ def _add_findings(sim: "ScenarioSim", base: dict) -> None:
     teams = base.get("teams", {})
     impacted = sim.impacted_total()
 
+    # Teaching mode: a non-functional (narrated) team gets an educational assessment of what it WOULD
+    # have done against this run — never a 0, framed as the missed defensive opportunities.
+    n_alerts = len(sim.alerts)
+    severe = sum(1 for a in sim.alerts if a["severity"] in ("high", "critical"))
+    if sim._is_narrated("soc") and "soc" in teams:
+        teams["soc"]["findings"] = {
+            "strengths": [f"A competent SOC had {n_alerts} alert(s) to work — triaging them and escalating "
+                          f"the {severe} severe one(s) would have handed IR a scoped incident early.",
+                          "The exploit/credential/encryption signals here are high-fidelity true positives."],
+            "weaknesses": ["Low-fidelity early signals (scans, enumeration) are easy to miss — that's the "
+                           "window Red exploited.", "Faster mean-time-to-detect shrinks Red's head start."]}
+    if sim._is_narrated("blue") and "blue" in teams:
+        opp = min(6, sim._live_threats() + impacted)
+        teams["blue"]["findings"] = {
+            "strengths": [f"There were ~{opp} clear containment opportunities — isolating footholds and "
+                          "closing the vector (segment / patch / reset creds) would have capped the blast radius.",
+                          "Air-gapping backups before impact keeps recovery viable."],
+            "weaknesses": ["Containment only works if it's *timely* — every phase Red completes raises the cost.",
+                           "Without escalation from SOC, Blue is working blind."]}
+
     red_s, red_w = [], []
     if "ransomware" in sim.teams["red"].done or impacted > 0:
         red_s.append("Drove the intrusion all the way to ransomware impact.")
@@ -332,7 +352,7 @@ def _add_findings(sim: "ScenarioSim", base: dict) -> None:
         soc_w.append("No alerts were raised — the intrusion ran unseen.")
     if any(a["status"] == "new" for a in sim.alerts):
         soc_w.append("Left alerts un-triaged — unactioned alerts are where breaches hide.")
-    if "soc" in teams:
+    if "soc" in teams and not sim._is_narrated("soc"):
         teams["soc"]["findings"] = {"strengths": soc_s, "weaknesses": soc_w}
 
     blue_s, blue_w = [], []
@@ -344,7 +364,7 @@ def _add_findings(sim: "ScenarioSim", base: dict) -> None:
         blue_w.append("Containment came too late — broad encryption occurred.")
     if not sim.backups_safe:
         blue_w.append("Recovery was impaired — backups were not protected in time.")
-    if "blue" in teams:
+    if "blue" in teams and not sim._is_narrated("blue"):
         teams["blue"]["findings"] = {"strengths": blue_s, "weaknesses": blue_w}
 
 

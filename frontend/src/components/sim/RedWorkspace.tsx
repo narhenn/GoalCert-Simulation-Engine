@@ -44,9 +44,9 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
           <div className="ws-card">
             <h3>Attacker console</h3>
             <div style={{ fontSize: 12, lineHeight: 1.7 }}>
-              <div>Patient zero: <b style={{ color: "#fde047" }}>{pz?.name ?? "—"}</b></div>
+              <div>Patient zero: <b style={{ color: "#b45309" }}>{pz?.name ?? "—"}</b></div>
               <div>State: <b style={{ color: "#ef4444" }}>{pz ? pz.state.charAt(0).toUpperCase() + pz.state.slice(1) : "—"}</b></div>
-              <div style={{ color: "#8aa0c2", marginTop: 6 }}>Mission: progress the kill chain and detonate before the defenders stop you.</div>
+              <div style={{ color: "var(--gc-muted)", marginTop: 6 }}>Mission: progress the kill chain and detonate before the defenders stop you.</div>
             </div>
           </div>
           <div className="ws-card">
@@ -54,27 +54,27 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
             {objectives.map((o) => (
               <div key={o.label} style={{ display: "flex", gap: 8, fontSize: 12.5, marginBottom: 6 }}>
                 <i className={`fa ${o.met ? "fa-circle-check" : "fa-circle"}`} style={{ color: o.met ? "#22c55e" : "#475569" }} />
-                <span style={{ color: o.met ? "#e2e8f0" : "#8aa0c2" }}>{o.label}</span>
+                <span style={{ color: o.met ? "var(--gc-text)" : "var(--gc-muted)" }}>{o.label}</span>
               </div>
             ))}
-            <div style={{ marginTop: 8, fontSize: 12, color: "#8aa0c2" }}>Red score: <b style={{ color: "#ef4444" }}>{red.score}</b></div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--gc-muted)" }}>Red score: <b style={{ color: "#ef4444" }}>{red.score}</b></div>
           </div>
           <div className="ws-card">
             <h3>Kali tools</h3>
-            {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-eye" /> spectating — claim Red to act</div>}
-            {canPlay && !busy && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-keyboard" /> click a tool to read its briefing, stage its command, then type it below.</div>}
+            {!canPlay && <div style={{ fontSize: 11, color: "var(--gc-muted)", marginBottom: 8 }}><i className="fa fa-eye" /> spectating — claim Red to act</div>}
+            {canPlay && !busy && <div style={{ fontSize: 10.5, color: "var(--gc-muted)", marginBottom: 8 }}><i className="fa fa-keyboard" /> click a tool to read its briefing, stage its command, then type it below.</div>}
             {busy && <div style={{ fontSize: 10.5, color: "#eab308", marginBottom: 8 }}><i className="fa fa-circle-notch fa-spin" /> {inflight[0].label} is running… let it finish.</div>}
             <div style={{ display: "grid", gap: 7 }}>
               {red.tools.map((t: any) => {
                 const staged = pending?.toolId === t.id;
                 return (
                   <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available || busy}
-                    style={staged ? { borderColor: "#22d3ee", boxShadow: "0 0 0 1px #22d3ee55" } : undefined}
+                    style={staged ? { borderColor: "var(--gc-primary)", boxShadow: "0 0 0 1px #22d3ee55" } : undefined}
                     onClick={() => onToolClick(t)} title={t.available ? t.summary : t.reason}>
                     <span className="t-name">
-                      <i className={`fa ${t.kind === "real" ? "fa-terminal" : "fa-bolt"}`} style={{ marginRight: 6, color: t.kind === "real" ? "#22d3ee" : "#ef4444" }} />
-                      {t.name} {t.kind === "real" && <span style={{ fontSize: 8, color: "#22d3ee" }}>REAL</span>}
-                      {staged && <span style={{ fontSize: 8, color: "#22d3ee", marginLeft: 4 }}>STAGED ↓</span>}
+                      <i className={`fa ${t.kind === "real" ? "fa-terminal" : "fa-bolt"}`} style={{ marginRight: 6, color: t.kind === "real" ? "var(--gc-primary)" : "#ef4444" }} />
+                      {t.name} {t.kind === "real" && <span style={{ fontSize: 8, color: "var(--gc-primary)" }}>REAL</span>}
+                      {staged && <span style={{ fontSize: 8, color: "var(--gc-primary)", marginLeft: 4 }}>STAGED ↓</span>}
                     </span>
                     <span className="t-sum">{t.available ? t.summary : `🔒 ${t.reason}`}</span>
                   </button>

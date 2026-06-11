@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useLiveSocket } from "../hooks/useLiveSocket";
 import RedWorkspace from "../components/sim/RedWorkspace";
@@ -10,6 +10,7 @@ import AarReport from "../components/AarReport";
 import GuidePanel from "../components/sim/GuidePanel";
 import ResultOverlayModal from "../components/sim/ResultOverlay";
 import { TEAM_META } from "../components/sim/shared";
+import { getPhase } from "../components/sim/StoryData";
 import "../components/sim/sim.css";
 
 type Sess = { session_id: string; player_id: string; role: string | null };
@@ -17,7 +18,9 @@ type Sess = { session_id: string; player_id: string; role: string | null };
 export default function ScenarioWorkspace() {
   const { scenarioId = "" } = useParams();
   const nav = useNavigate();
-  const key = `gc_guided_${scenarioId}`;
+  const [sp] = useSearchParams();
+  const mode = sp.get("mode") === "practice" ? "practice" : "teach";   // Library=practice, Live=teach
+  const key = `gc_guided_${scenarioId}_${mode}`;
   const [sess, setSess] = useState<Sess | null>(() => {
     try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : null; } catch { return null; }
   });
@@ -72,7 +75,7 @@ export default function ScenarioWorkspace() {
   }, [simEvents]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   function launch(name: string, role: string) {
-    api.createGuidedSession({ host_name: name || "operator", scenario_id: scenarioId }).then((r) => {
+    api.createGuidedSession({ host_name: name || "operator", scenario_id: scenarioId, mode }).then((r) => {
       const s = { session_id: r.session_id, player_id: r.player_id, role };
       localStorage.setItem(key, JSON.stringify(s)); claimed.current = false; setSess(s);
     });
@@ -89,7 +92,7 @@ export default function ScenarioWorkspace() {
   const snap: any = live.state.snapshot;
   const sim = snap?.sim;
   if (!sim) {
-    return <div style={{ padding: 40, color: "#94a3b8" }}>
+    return <div style={{ padding: 40, color: "var(--gc-muted)" }}>
       <i className="fa fa-circle-notch fa-spin" /> Spinning up the range…
       {live.state.error && <div style={{ color: "#ef4444", marginTop: 8 }}>{live.state.error}</div>}
     </div>;
@@ -104,40 +107,43 @@ export default function ScenarioWorkspace() {
   return (
     <div className="ws-root">
       <ResultOverlayModal result={lastResult} onClose={() => setLastResult(null)} />
-      {/* top bar */}
+      {/* slim top bar — the single nav/control strip for the immersive workspace */}
       <div className="ws-topbar">
-        <button className="btn" onClick={quit}><i className="fa fa-arrow-left" /></button>
-        <b>{meta?.name ?? "Operation Tripwire"}</b>
-        <div style={{ display: "flex", gap: 4 }}>
+        <button className="ws-icon" onClick={quit} title="Back to scenarios"><i className="fa fa-arrow-left" /></button>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meta?.name ?? "Operation Tripwire"}</div>
+        </div>
+        <span className={"mode-chip " + mode}>
+          <i className={`fa ${mode === "practice" ? "fa-dumbbell" : "fa-graduation-cap"}`} /> {mode === "practice" ? "Practice" : "Teaching"}
+        </span>
+        <div style={{ display: "flex", gap: 3, marginLeft: 4 }}>
           {["red", "soc", "blue", "victim"].map((t) => {
             const m = TEAM_META[t];
+            const st = sim.team_status?.[t];
             return (
-              <button key={t} className={"ws-tab" + (tab === t ? " active" : "")} style={{ color: tab === t ? m.color : undefined }}
-                onClick={() => setTab(t)}>
-                <i className={`fa ${m.icon}`} /> {m.label}
-                {t === myRole && <span className="seat" style={{ color: m.color }}>YOU</span>}
+              <button key={t} className={"ws-tab" + (tab === t ? " active" : "")} onClick={() => setTab(t)}
+                title={st === "you" ? "Your seat" : st === "narrated" ? "Narrated — shown, not acting" : st === "functional" ? "Functional — acting for real" : undefined}>
+                <i className={`fa ${m.icon}`} style={{ color: tab === t ? undefined : m.color }} /> <span className="lbl">{m.label}</span>
+                {t === myRole && <span className="seat">YOU</span>}
+                {st === "narrated" && t !== myRole && <span className="seat" style={{ background: "rgba(0,0,0,.08)" }}>i</span>}
               </button>
             );
           })}
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center", fontSize: 12 }}>
-          <span style={{ color: "#8aa0c2" }}>tick {sim.tick}</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}>
+          <span style={{ color: "var(--gc-muted)", fontFamily: "var(--mono)", fontSize: 11 }}>t{sim.tick}</span>
           <OutcomeBadge band={sim.worm.outcome_band} finished={sim.finished} outcome={sim.outcome} />
           {termUrl
-            ? <a className="btn" href={termUrl} target="_blank" rel="noreferrer" style={{ color: "#22d3ee" }}><i className="fa fa-terminal" /> Kali</a>
-            : <span style={{ color: "#64748b", fontSize: 11 }}><i className="fa fa-terminal" /> Kali offline</span>}
-          <button className={"btn" + (sim.auto_enabled ? " btn-primary" : "")} title="When ON, empty seats auto-play (telegraphed). OFF = learn at your own pace."
-            onClick={() => live.setSimAuto(!sim.auto_enabled)}>
-            <i className={`fa ${sim.auto_enabled ? "fa-robot" : "fa-user"}`} /> Auto-defense {sim.auto_enabled ? "ON" : "OFF"}
-          </button>
-          {!sim.finished && <button className="btn" onClick={live.conclude}><i className="fa fa-flag-checkered" /> Conclude</button>}
-          {sim.finished && resultClosed && <button className="btn" onClick={() => setResultClosed(false)}><i className="fa fa-file-lines" /> Result</button>}
+            ? <a className="ws-icon" href={termUrl} target="_blank" rel="noreferrer" title="Open Kali terminal" style={{ color: "var(--gc-primary)" }}><i className="fa fa-terminal" /></a>
+            : <span className="ws-icon" title="Kali offline" style={{ color: "#94a3b8" }}><i className="fa fa-terminal" /></span>}
+          {!sim.finished && <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={live.conclude}><i className="fa fa-flag-checkered" /> Conclude</button>}
+          {sim.finished && resultClosed && <button className="btn" style={{ padding: "6px 12px" }} onClick={() => setResultClosed(false)}><i className="fa fa-file-lines" /> Result</button>}
         </div>
       </div>
 
       {/* recovery-phase banner — Red already won; you're now learning incident response on any seat */}
       {recoveryMode && !sim.finished && (
-        <div className="intent-banner" style={{ borderColor: "#3b82f6", color: "#93c5fd" }}>
+        <div className="intent-banner" style={{ background: "#eff6ff", borderColor: "#bfdbfe", color: "#1d4ed8" }}>
           <i className="fa fa-shield-halved" /> <b>Recovery phase</b> — Red's attack succeeded. You can now act as <b>any</b> team:
           contain remaining footholds, eradicate the vector, and restore impacted hosts from backup. Hit <b>Conclude</b> when done.
         </div>
@@ -153,6 +159,24 @@ export default function ScenarioWorkspace() {
       <div className="ws-body" style={{ display: "flex" }}>
         <GuidePanel sim={sim} myRole={myRole} scenarioId={scenarioId} />
         <div style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
+          {(() => {
+            const st = sim.team_status?.[tab];
+            if (tab === "victim" || !st || st !== "narrated") return null;
+            const ph = sim.guide ? getPhase(scenarioId, sim.guide.phase) : null;
+            const persp = ph ? (tab === "red" ? ph.red : tab === "soc" ? ph.soc : ph.blue) : "";
+            const m = TEAM_META[tab];
+            return (
+              <div style={{ margin: "12px 12px 0", padding: "10px 14px", borderRadius: 12, background: `${m.color}10`,
+                border: `1px solid ${m.color}33`, fontSize: 12.5, lineHeight: 1.55, display: "flex", gap: 10 }}>
+                <i className="fa fa-circle-info" style={{ color: m.color, marginTop: 2 }} />
+                <div>
+                  <b style={{ color: m.color }}>{m.label} is narrated here</b> — in this teaching session you're seeing
+                  what they'd do, not live actions (only <b>{TEAM_META[myRole]?.label}</b> is functional).
+                  {persp && <> <span style={{ color: "var(--gc-muted)" }}>This phase: {persp}</span></>}
+                </div>
+              </div>
+            );
+          })()}
           {tab === "red" && <RedWorkspace sim={sim} canPlay={canPlay("red")} runTool={live.runTool} events={events} termUrl={termUrl} error={live.state.error} />}
           {tab === "soc" && <SocWorkspace sim={sim} canPlay={canPlay("soc")} runTool={live.runTool} events={events} />}
           {tab === "blue" && <BlueWorkspace sim={sim} canPlay={canPlay("blue")} runTool={live.runTool} events={events} error={live.state.error} />}
@@ -164,9 +188,9 @@ export default function ScenarioWorkspace() {
       {sim.impact_complete && !sim.finished && !recoveryMode && (
         <div style={{ position: "fixed", inset: 0, background: "#000b", zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div className="ws-card" style={{ width: 500, textAlign: "center", borderColor: "#ef4444" }}>
-            <div style={{ fontSize: 12, color: "#8aa0c2", letterSpacing: 1 }}>RED'S MISSION ACCOMPLISHED</div>
+            <div style={{ fontSize: 12, color: "var(--gc-muted)", letterSpacing: 1 }}>RED'S MISSION ACCOMPLISHED</div>
             <div style={{ fontSize: 28, fontWeight: 800, color: "#ef4444", margin: "8px 0" }}><i className="fa fa-skull-crossbones" /> Files Encrypted</div>
-            <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.65, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: "var(--gc-text2)", lineHeight: 1.65, marginBottom: 16 }}>
               The attack succeeded — but the story isn't over. <b>This is where real defenders earn their pay.</b>{" "}
               Step into the Blue seat to <b style={{ color: "#3b82f6" }}>contain</b> the remaining footholds,{" "}
               <b style={{ color: "#3b82f6" }}>eradicate</b> the vector, and <b style={{ color: "#3b82f6" }}>recover</b> impacted hosts from backups.
@@ -191,17 +215,17 @@ function Landing({ meta, onLaunch, onBack }: { meta: any; onLaunch: (n: string, 
   const [name, setName] = useState(localStorage.getItem("gc_live_name") || "");
   const [role, setRole] = useState("red");
   return (
-    <div style={{ maxWidth: 720, margin: "48px auto", padding: 24, color: "#e2e8f0" }}>
+    <div style={{ maxWidth: 720, margin: "48px auto", padding: 24, color: "var(--gc-text)" }}>
       <button className="btn" onClick={onBack} style={{ marginBottom: 16 }}><i className="fa fa-arrow-left" /> Live</button>
-      <div style={{ border: "1px solid #334155", borderRadius: 12, padding: 20, background: "#0a1120", marginBottom: 18 }}>
+      <div style={{ border: "1px solid var(--gc-border)", borderRadius: 12, padding: 20, background: "#fff", marginBottom: 18 }}>
         <div style={{ fontSize: 11, letterSpacing: 1, color: "#f59e0b" }}>W1 INCIDENT OPERATOR CONSOLE</div>
         <h1 style={{ margin: "6px 0" }}>{meta?.name ?? "Operation Tripwire"}</h1>
-        <div style={{ color: "#8aa0c2", fontSize: 13, lineHeight: 1.7 }}>
-          Patient Zero: <b style={{ color: "#fde047" }}>FIN-WS-014</b> · State: <b style={{ color: "#ef4444" }}>Infected</b><br />
+        <div style={{ color: "var(--gc-muted)", fontSize: 13, lineHeight: 1.7 }}>
+          Patient Zero: <b style={{ color: "#b45309" }}>FIN-WS-014</b> · State: <b style={{ color: "#ef4444" }}>Infected</b><br />
           {meta?.summary}
         </div>
       </div>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Pick your seat <span style={{ color: "#8aa0c2", fontWeight: 400 }}>— take your time; the other seats stay idle until you turn on Auto-defense (top bar) or teammates join</span></div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>Pick your seat <span style={{ color: "var(--gc-muted)", fontWeight: 400 }}>— take your time; the other seats stay idle until you turn on Auto-defense (top bar) or teammates join</span></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {["red", "blue", "soc"].map((k) => {
           const m = TEAM_META[k];
@@ -209,7 +233,7 @@ function Landing({ meta, onLaunch, onBack }: { meta: any; onLaunch: (n: string, 
             <div key={k} onClick={() => setRole(k)} style={{ cursor: "pointer", border: `2px solid ${role === k ? m.color : "#33415544"}`,
               borderRadius: 12, padding: 14, background: role === k ? `${m.color}14` : "transparent" }}>
               <div style={{ color: m.color, fontWeight: 700 }}><i className={`fa ${m.icon}`} /> {m.label}</div>
-              <div style={{ fontSize: 12, color: "#8aa0c2", marginTop: 4 }}>{m.blurb}</div>
+              <div style={{ fontSize: 12, color: "var(--gc-muted)", marginTop: 4 }}>{m.blurb}</div>
             </div>
           );
         })}
@@ -224,16 +248,16 @@ function Landing({ meta, onLaunch, onBack }: { meta: any; onLaunch: (n: string, 
 
 function RolePick({ meta, connected, onPick, onBack }: { meta: any; connected: boolean; onPick: (r: string) => void; onBack: () => void }) {
   return (
-    <div style={{ maxWidth: 640, margin: "60px auto", padding: 24, textAlign: "center", color: "#e2e8f0" }}>
+    <div style={{ maxWidth: 640, margin: "60px auto", padding: 24, textAlign: "center", color: "var(--gc-text)" }}>
       <h1>Join: {meta?.name ?? "Scenario"}</h1>
-      <div style={{ color: "#8aa0c2", marginBottom: 18 }}>Pick a free seat — <span style={{ color: connected ? "#22c55e" : "#f59e0b" }}>{connected ? "connected" : "connecting…"}</span></div>
+      <div style={{ color: "var(--gc-muted)", marginBottom: 18 }}>Pick a free seat — <span style={{ color: connected ? "#22c55e" : "#f59e0b" }}>{connected ? "connected" : "connecting…"}</span></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {["red", "blue", "soc"].map((k) => {
           const m = TEAM_META[k];
           return (
             <div key={k} onClick={() => onPick(k)} style={{ cursor: "pointer", border: `2px solid ${m.color}55`, borderRadius: 12, padding: 16 }}>
               <div style={{ color: m.color, fontWeight: 700 }}><i className={`fa ${m.icon}`} /> {m.label}</div>
-              <div style={{ fontSize: 12, color: "#8aa0c2", marginTop: 4 }}>{m.blurb}</div>
+              <div style={{ fontSize: 12, color: "var(--gc-muted)", marginTop: 4 }}>{m.blurb}</div>
             </div>
           );
         })}
@@ -256,7 +280,7 @@ function FinishOverlay({ sim, report, onQuit, onClose }: { sim: any; report: any
 
   if (showReport && report) {
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 80, background: "#070b14", overflowY: "auto" }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 80, background: "var(--gc-bg)", overflowY: "auto" }}>
         <AarReport report={report} onClose={() => setShowReport(false)} />
         <div className="no-print" style={{ textAlign: "center", paddingBottom: 28 }}>
           <button className="btn btn-primary" onClick={onQuit}><i className="fa fa-rotate-right" /> Back to scenarios</button>
@@ -270,12 +294,12 @@ function FinishOverlay({ sim, report, onQuit, onClose }: { sim: any; report: any
         <button className="btn" onClick={onClose} title="Close — stay in the range" style={{ position: "absolute", top: 8, right: 8, padding: "2px 8px" }}>
           <i className="fa fa-xmark" />
         </button>
-        <div style={{ fontSize: 12, color: "#8aa0c2" }}>Scenario complete</div>
+        <div style={{ fontSize: 12, color: "var(--gc-muted)" }}>Scenario complete</div>
         <div style={{ fontSize: 30, fontWeight: 800, color: c, margin: "6px 0" }}>{sim.outcome}</div>
-        <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, color: "var(--gc-text2)", marginBottom: 12 }}>
           {sim.worm.infected} infected · {sim.worm.impacted} impacted · ${(sim.worm.financial_loss / 1000).toFixed(0)}k loss
         </div>
-        {report && <div style={{ display: "flex", justifyContent: "center", gap: 20, fontSize: 13, color: "#8aa0c2", marginBottom: 14 }}>
+        {report && <div style={{ display: "flex", justifyContent: "center", gap: 20, fontSize: 13, color: "var(--gc-muted)", marginBottom: 14 }}>
           {Object.entries(report.teams || {}).map(([r, t]: any) => <span key={r}>{r.toUpperCase()} {t.score}</span>)}
         </div>}
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
@@ -283,7 +307,7 @@ function FinishOverlay({ sim, report, onQuit, onClose }: { sim: any; report: any
           <button className="btn" onClick={onClose}><i className="fa fa-magnifying-glass" /> Stay &amp; review the range</button>
           <button className="btn" onClick={onQuit}><i className="fa fa-rotate-right" /> Back to scenarios</button>
         </div>
-        {report && <div style={{ fontSize: 11, color: "#8aa0c2", marginTop: 8 }}><i className="fa fa-floppy-disk" /> Saved to Reports &amp; AAR (open it there to view or print as PDF).</div>}
+        {report && <div style={{ fontSize: 11, color: "var(--gc-muted)", marginTop: 8 }}><i className="fa fa-floppy-disk" /> Saved to Reports &amp; AAR (open it there to view or print as PDF).</div>}
       </div>
     </div>
   );

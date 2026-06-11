@@ -13,6 +13,8 @@ import LiveRoom from "./pages/LiveRoom";
 import Tripwire from "./pages/Tripwire";
 import GuidedRoom from "./pages/GuidedRoom";
 import ScenarioWorkspace from "./pages/ScenarioWorkspace";
+import Login from "./pages/Login";
+import { useAuth } from "./hooks/useAuth";
 
 // Scenarios that have an immersive sim workspace (must match the backend sim catalog in sim/tools.py).
 const IMMERSIVE = new Set(["scn-wannacry-w1", "scn-r5-phishing", "scn-c5-edr"]);
@@ -22,9 +24,22 @@ function Play() {
 }
 
 export default function App() {
+  const { token } = useAuth();
+
+  // Gate: without a token, only the sign-in screen is reachable.
+  if (!token) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <Layout>
       <Routes>
+        <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="/" element={<Dashboard />} />
         <Route path="/library" element={<Library />} />
         <Route path="/live" element={<LiveSessions />} />

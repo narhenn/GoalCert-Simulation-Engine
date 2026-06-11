@@ -30,6 +30,7 @@ class CreateSessionRequest(BaseModel):
 class CreateGuidedRequest(BaseModel):
     host_name: str = "host"
     scenario_id: str                  # a guided scenario id, e.g. "scn-wannacry-w1"
+    mode: str = "teach"               # "teach" (Live Scenario) | "practice" (Scenario Library)
 
 
 class JoinRequest(BaseModel):
@@ -107,6 +108,7 @@ def create_guided_session(req: CreateGuidedRequest) -> dict:
             from app.live.sim.engine import ScenarioSim
             session.sim = ScenarioSim(scn.id)
             session.sim.session = session
+            session.sim.configure_mode(req.mode, None)   # teach (live) vs practice (library)
             session.arm_live_fire(True)        # real recon/enum tools fire against the lab when up
             mode = "sim"
         else:

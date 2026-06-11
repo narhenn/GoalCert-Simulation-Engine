@@ -24,24 +24,24 @@ function TeamCard({ team, data }: { team: string; data: any }) {
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
         {Object.entries(data.kpis || {}).map(([k, v]) => (
-          <span key={k} className="aar-chip" style={{ fontSize: 10 }}>{k.replace(/_/g, " ")}: {Array.isArray(v) ? (v.length ? v.join(", ") : "—") : String(v)}</span>
+          <span key={k} className="aar-chip" style={{ fontSize: 11 }}>{k.replace(/_/g, " ")}: {Array.isArray(v) ? (v.length ? v.join(", ") : "—") : String(v)}</span>
         ))}
       </div>
       {(data.findings?.strengths || []).map((x: string, i: number) => (
-        <div key={"s" + i} style={{ fontSize: 12, marginBottom: 4 }}><i className="fa fa-check" style={{ color: "#22c55e", marginRight: 6 }} />{x}</div>
+        <div key={"s" + i} style={{ fontSize: 12.5, marginBottom: 4 }}><i className="fa fa-check" style={{ color: "#22c55e", marginRight: 6 }} />{x}</div>
       ))}
       {(data.findings?.weaknesses || []).map((x: string, i: number) => (
-        <div key={"w" + i} style={{ fontSize: 12, marginBottom: 4 }}><i className="fa fa-triangle-exclamation" style={{ color: "#f59e0b", marginRight: 6 }} />{x}</div>
+        <div key={"w" + i} style={{ fontSize: 12.5, marginBottom: 4 }}><i className="fa fa-triangle-exclamation" style={{ color: "#f59e0b", marginRight: 6 }} />{x}</div>
       ))}
       {tl.length > 0 && (
         <>
-          <button className="btn btn-ghost no-print" style={{ marginTop: 10, fontSize: 11, padding: "4px 10px" }} onClick={() => setOpen(!open)}>
+          <button className="btn btn-ghost no-print" style={{ marginTop: 10, fontSize: 12, padding: "4px 10px" }} onClick={() => setOpen(!open)}>
             <i className={`fa ${open ? "fa-chevron-up" : "fa-chevron-down"}`} /> {open ? "Hide" : "Show"} actions ({tl.length})
           </button>
           {open && (
             <div style={{ marginTop: 8, maxHeight: 220, overflowY: "auto" }}>
               {tl.map((a: any, i: number) => (
-                <div key={i} style={{ fontSize: 11.5, display: "flex", gap: 8, marginBottom: 3 }}>
+                <div key={i} style={{ fontSize: 12, display: "flex", gap: 8, marginBottom: 3 }}>
                   <span style={{ color: "#64748b", fontFamily: "var(--mono, monospace)" }}>{clock(a.t)}</span>
                   <span>{a.label}{a.target ? ` → ${a.target}` : ""}</span>
                 </div>
@@ -79,14 +79,14 @@ export default function AarReport({ report, onClose }: { report: any; onClose?: 
       <div className="aar-card" style={{ borderLeft: `4px solid ${c}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
           <div>
-            <div style={{ fontSize: 11, color: "#8aa0c2", textTransform: "uppercase", letterSpacing: 1 }}>
+            <div style={{ fontSize: 12, color: "#8aa0c2", textTransform: "uppercase", letterSpacing: 1 }}>
               <i className="fa fa-file-shield" /> After-Action Report{sub ? ` · ${sub}` : ""}
             </div>
             <h2 style={{ fontSize: 22, fontWeight: 800, margin: "4px 0" }}>{title}</h2>
             <div style={{ fontSize: 13, color: c, fontWeight: 600 }}>{r.verdict || band}</div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 11, color: "#8aa0c2" }}>duration {clock(r.duration_s)}</div>
+            <div style={{ fontSize: 12, color: "#8aa0c2" }}>duration {clock(r.duration_s)}</div>
             <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
               {Object.entries(teams).map(([t, d]: any) => (
                 <span key={t} className="aar-chip" style={{ color: TEAM[t]?.color }}>{t.toUpperCase()} {d.score}</span>
@@ -103,7 +103,7 @@ export default function AarReport({ report, onClose }: { report: any; onClose?: 
             {tiles.map(([label, value]) => (
               <div key={label} style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 18, fontWeight: 800, color: label === "Outcome" ? c : "#e2e8f0" }}>{value}</div>
-                <div style={{ fontSize: 9, color: "#8aa0c2", textTransform: "uppercase", letterSpacing: .5 }}>{label}</div>
+                <div style={{ fontSize: 10.5, color: "#8aa0c2", textTransform: "uppercase", letterSpacing: .5 }}>{label}</div>
               </div>
             ))}
           </div>
@@ -122,11 +122,11 @@ export default function AarReport({ report, onClose }: { report: any; onClose?: 
             <b><i className="fa fa-sitemap" /> Attack path (MITRE ATT&CK)</b>
             <div style={{ marginTop: 8, maxHeight: 320, overflowY: "auto" }}>
               {r.mitre.map((m: any, i: number) => (
-                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, padding: "4px 0", borderBottom: "1px solid #1e293b" }}>
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5, padding: "4px 0", borderBottom: "1px solid #1e293b" }}>
                   {m.t != null && <span style={{ color: "#64748b", fontFamily: "var(--mono, monospace)" }}>{clock(m.t)}</span>}
                   {m.detected != null && <i className={`fa ${m.detected ? "fa-eye" : "fa-eye-slash"}`} style={{ color: m.detected ? "#22c55e" : "#64748b" }} />}
                   <span style={{ flex: 1 }}>{m.label}{m.target ? ` → ${m.target}` : ""}</span>
-                  {m.mitre && <span className="aar-chip" style={{ fontSize: 9 }}>{m.mitre}</span>}
+                  {m.mitre && <span className="aar-chip" style={{ fontSize: 10.5 }}>{m.mitre}</span>}
                 </div>
               ))}
             </div>
@@ -136,13 +136,13 @@ export default function AarReport({ report, onClose }: { report: any; onClose?: 
           <b><i className="fa fa-lightbulb" /> Recommendations</b>
           <div style={{ marginTop: 8 }}>
             {(r.recommendations || []).map((rec: string, i: number) => (
-              <div key={i} style={{ display: "flex", gap: 8, fontSize: 12.5, marginBottom: 8 }}>
+              <div key={i} style={{ display: "flex", gap: 8, fontSize: 13, marginBottom: 8 }}>
                 <i className="fa fa-arrow-right" style={{ color: "#5B8CFF", marginTop: 3 }} /><span>{rec}</span>
               </div>
             ))}
-            {(r.recommendations || []).length === 0 && <div style={{ fontSize: 12, color: "#8aa0c2" }}>No recommendations.</div>}
+            {(r.recommendations || []).length === 0 && <div style={{ fontSize: 12.5, color: "#8aa0c2" }}>No recommendations.</div>}
           </div>
-          {r.note && <div style={{ fontSize: 11, color: "#8aa0c2", marginTop: 10, fontStyle: "italic" }}>{r.note}</div>}
+          {r.note && <div style={{ fontSize: 12, color: "#8aa0c2", marginTop: 10, fontStyle: "italic" }}>{r.note}</div>}
         </div>
       </div>
     </div>

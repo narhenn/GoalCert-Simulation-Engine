@@ -143,6 +143,12 @@ class ScenarioSim:
         # Auto-driven seats act ONLY when the host enables this. Off by default so a learner can read,
         # explore tools and act at their own pace — nothing happens on a clock until they make it happen.
         self.auto_enabled = False
+        # Mode determines which seats are *functional* vs *narrated*:
+        #   "teach"    — only the chosen team is functional; the rest are narrated (the Red attack spine
+        #                still auto-advances so a defender has a live threat to work). Live Scenario.
+        #   "practice" — every non-chosen team is functional (auto-plays for real). Scenario Library.
+        self.mode = "teach"
+        self.human_role: str | None = None             # the seat the learner is driving
         self.finished = False
         self.outcome: str | None = None
         self.report: dict | None = None
@@ -661,6 +667,31 @@ class ScenarioSim:
                 if h.vlan in reach and h.revealed and h.state in ("healthy", "vulnerable")
                 and not h.patient_zero]
 
+    # ---- mode: which seats are functional vs narrated -----------------------
+    def configure_mode(self, mode: str, human_role: str | None) -> None:
+        """Set teach/practice + the human's seat, and derive whether any seat auto-runs."""
+        self.mode = mode if mode in ("teach", "practice") else "teach"
+        self.human_role = human_role if human_role in ("red", "blue", "soc") else None
+        self.auto_enabled = any(self._auto_active(r) for r in ("red", "blue", "soc"))
+
+    def set_human_role(self, role: str | None) -> None:
+        self.configure_mode(self.mode, role)
+
+    def _auto_active(self, role: str) -> bool:
+        """Does this seat act for real (auto-driven)? The human's own seat never auto-runs."""
+        if self.human_role and role == self.human_role:
+            return False
+        if self.mode == "practice":
+            # every other seat is functional; in a multi-human room defer to seat occupancy
+            return self.session.is_auto(role) if self.session is not None else True
+        # teach: only the Red attack spine auto-advances (when the human is a defender);
+        # the defender seats are NARRATED, never functional, so Red completes its goal.
+        return role == "red" and self.human_role != "red"
+
+    def _is_narrated(self, role: str) -> bool:
+        """A team shown educationally (what they *would* do) but not actually acting — teach mode only."""
+        return self.mode == "teach" and role != self.human_role and not self._auto_active(role)
+
     # ---- telegraphed auto-drivers -------------------------------------------
     def _is_auto(self, role: str) -> bool:
         if self.session is None:
@@ -674,7 +705,7 @@ class ScenarioSim:
             return False
         changed = False
         for role in ROLES:
-            if not self._is_auto(role):
+            if not self._auto_active(role):     # human seat + (teach) narrated defenders don't auto-run
                 self.pending_intents.pop(role, None)
                 continue
             intent = self.pending_intents.get(role)
@@ -878,9 +909,28 @@ class ScenarioSim:
         return False
 
     def set_auto_enabled(self, on: bool) -> None:
+        # Legacy/test entry: turning auto on means a full all-seats match → practice mode.
+        if on:
+            self.mode = "practice"
         self.auto_enabled = bool(on)
         if not on:
             self.pending_intents.clear()
+
+    # ---- scoring (narrated teams get a competent-baseline estimate, never a misleading 0) -----
+    def team_score(self, role: str) -> int:
+        return self._estimate_score(role) if self._is_narrated(role) else self.teams[role].score
+
+    def _estimate_score(self, role: str) -> int:
+        """What a competent team WOULD have scored against this run, from the opportunities it had —
+        so a narrated (non-functional) team reads as a real assessment, not zero."""
+        if role == "soc":
+            severe = sum(1 for a in self.alerts if a["severity"] in ("high", "critical"))
+            return 20 + len(self.alerts) * 12 + severe * 10          # monitor + triage all + escalate severe
+        if role == "blue":
+            opportunities = min(6, self._live_threats() + self.impacted_total())
+            vector = 30 if (self.smbv1_patched or self.kill_switch == "tripped" or self.cred_mode) else 0
+            return 30 + opportunities * 15 + vector                  # contain footholds + close the vector
+        return self.teams[role].score
 
     def conclude(self) -> None:
         if not self.finished:
@@ -922,8 +972,8 @@ class ScenarioSim:
         for role in ("red", "soc", "blue"):
             tl = [{"t": e["t"], "label": e["title"]} for e in self.events
                   if e["role"] == role and e["kind"] in ("action", "response", "soc")]
-            teams[role] = {"score": self.teams[role].score, "timeline": tl,
-                           "kpis": {"actions": len(tl)}}
+            teams[role] = {"score": self.team_score(role), "timeline": tl,
+                           "kpis": {"actions": len(tl)}, "narrated": self._is_narrated(role)}
         teams["soc"]["kpis"]["alerts"] = len(self.alerts)
         teams["soc"]["kpis"]["escalated"] = sum(1 for a in self.alerts if a["status"] == "escalated")
         recs = []
@@ -935,6 +985,7 @@ class ScenarioSim:
             recs.append("Strong run — early detection + containment held the blast radius down.")
         return {
             "session_id": self.session.id if self.session else "", "guided": True,
+            "mode": self.mode, "human_role": self.human_role,
             "scenario": {"id": self.scenario_id, "name": scn_name, "subtitle": scn_sub},
             "result": result, "outcome_band": band,
             "verdict": {"Contained": "Contained — minimal impact.", "Degraded": "Degraded — partial impact.",
@@ -1010,6 +1061,11 @@ class ScenarioSim:
                      "infected": self.infected_total(), "impacted": self.impacted_total(),
                      "extra_infected": self.extra_infected, "extra_impacted": self.extra_impacted,
                      "financial_loss": self.financial_loss(), "outcome_band": self.outcome_band()},
+            "mode": self.mode, "human_role": self.human_role,
+            # per-team: functional (acts for real) vs narrated (shown educationally, doesn't act)
+            "team_status": {r: ("you" if r == self.human_role
+                                 else "functional" if self._auto_active(r)
+                                 else "narrated") for r in ("red", "soc", "blue")},
             "teams": {r: {"score": self.teams[r].score, "tools": self.unlocked(r)} for r in ("red", "soc", "blue")},
             # `noticed` = the auto-SOC's mean-time-to-detect has elapsed (a human can triage anytime);
             # `detect_in` = ticks until the auto-SOC would notice a still-unnoticed alert.

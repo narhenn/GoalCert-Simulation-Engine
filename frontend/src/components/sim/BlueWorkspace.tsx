@@ -39,12 +39,12 @@ export default function BlueWorkspace({ sim, canPlay, runTool, events, error }:
               <div style={{ fontSize: 17, fontWeight: 800, color: STATE_COLOR[s] }}>
                 {counts[s] || 0}{s === "infected" ? `+${worm.extra_infected || 0}` : s === "impacted" ? `+${worm.extra_impacted || 0}` : ""}
               </div>
-              <div style={{ fontSize: 9, color: "#8aa0c2", textTransform: "uppercase" }}>{STATE_LABEL[s]}</div>
+              <div style={{ fontSize: 9, color: "var(--gc-muted)", textTransform: "uppercase" }}>{STATE_LABEL[s]}</div>
             </div>
           ))}
           <div style={{ marginLeft: "auto", textAlign: "center" }}>
             <div style={{ fontSize: 17, fontWeight: 800, color: worm.r_value > 1 ? "#f59e0b" : "#22c55e" }}>R {worm.r_value}</div>
-            <div style={{ fontSize: 9, color: "#8aa0c2" }}>reproduction</div>
+            <div style={{ fontSize: 9, color: "var(--gc-muted)" }}>reproduction</div>
           </div>
         </div>
       </div>
@@ -54,8 +54,8 @@ export default function BlueWorkspace({ sim, canPlay, runTool, events, error }:
         <div style={{ width: 290, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flexShrink: 0 }}>
           <div className="ws-card">
             <h3>IR action center · score {blue.score}</h3>
-            {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-eye" /> spectating — claim Blue to act</div>}
-            {canPlay && !busy && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-keyboard" /> click an action to read its briefing, stage its command, then type it below.</div>}
+            {!canPlay && <div style={{ fontSize: 11, color: "var(--gc-muted)", marginBottom: 8 }}><i className="fa fa-eye" /> spectating — claim Blue to act</div>}
+            {canPlay && !busy && <div style={{ fontSize: 10.5, color: "var(--gc-muted)", marginBottom: 8 }}><i className="fa fa-keyboard" /> click an action to read its briefing, stage its command, then type it below.</div>}
             {busy && <div style={{ fontSize: 10.5, color: "#eab308", marginBottom: 8 }}><i className="fa fa-circle-notch fa-spin" /> {inflight[0].label} is running… let it finish.</div>}
             <div style={{ display: "grid", gap: 7 }}>
               {blue.tools.map((t: any) => {
@@ -78,8 +78,8 @@ export default function BlueWorkspace({ sim, canPlay, runTool, events, error }:
           <div className="ws-card">
             <h3>Business impact</h3>
             <div style={{ fontSize: 26, fontWeight: 800, color: "#f59e0b" }}>{fmtUSD(worm.financial_loss)}</div>
-            <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 8 }}>estimated loss</div>
-            <div style={{ fontSize: 12, color: "#cbd5e1" }}>{worm.impacted} hosts impacted · backups {worm.backups_safe ? "safe" : "lost"}</div>
+            <div style={{ fontSize: 11, color: "var(--gc-muted)", marginBottom: 8 }}>estimated loss</div>
+            <div style={{ fontSize: 12, color: "var(--gc-text2)" }}>{worm.impacted} hosts impacted · backups {worm.backups_safe ? "safe" : "lost"}</div>
             <div style={{ fontSize: 12, marginTop: 4, color: worm.outcome_band === "Contained" ? "#22c55e" : worm.outcome_band === "Degraded" ? "#f59e0b" : "#ef4444" }}>
               Trajectory: <b>{worm.outcome_band}</b>
             </div>

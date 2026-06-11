@@ -28,13 +28,13 @@ export default function SocWorkspace({ sim, canPlay, runTool, events }:
       {/* alert queue */}
       <div className="ws-card" style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
         <h3>Alert queue · SOC score {soc.score}</h3>
-        {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 6 }}><i className="fa fa-eye" /> spectating — claim SOC to triage</div>}
+        {!canPlay && <div style={{ fontSize: 11, color: "var(--gc-muted)", marginBottom: 6 }}><i className="fa fa-eye" /> spectating — claim SOC to triage</div>}
         <div style={{ flex: 1, overflowY: "auto", display: "grid", gap: 8 }}>
-          {alerts.length === 0 && <div style={{ fontSize: 12, color: "#8aa0c2" }}>No alerts yet. The funnel starts quiet — run a query to hunt for early signals.</div>}
+          {alerts.length === 0 && <div style={{ fontSize: 12, color: "var(--gc-muted)" }}>No alerts yet. The funnel starts quiet — run a query to hunt for early signals.</div>}
           {alerts.slice().reverse().map((a) => (
-            <div key={a.id} style={{ border: "1px solid #1e293b", borderLeft: `3px solid ${SEV_COLOR[a.severity]}`, borderRadius: 6, padding: 8 }}>
+            <div key={a.id} style={{ border: "1px solid var(--gc-border)", borderLeft: `3px solid ${SEV_COLOR[a.severity]}`, borderRadius: 6, padding: 8 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600 }}>{a.label}</div>
-              <div style={{ fontSize: 10.5, color: "#8aa0c2" }}>
+              <div style={{ fontSize: 10.5, color: "var(--gc-muted)" }}>
                 {fmtT(a.t)} · {a.severity.toUpperCase()}{a.host_name ? ` · ${a.host_name}` : ""}{a.mitre ? ` · ${a.mitre}` : ""}
               </div>
               {a.status === "new" && (a.noticed
@@ -46,7 +46,7 @@ export default function SocWorkspace({ sim, canPlay, runTool, events }:
                 {a.status === "triaged" && <button className="btn btn-primary" style={{ fontSize: 10, padding: "2px 8px" }} disabled={!canPlay}
                   onClick={() => runTool(escalateId(soc), { alert: a.id })}>Escalate to IR</button>}
                 {a.status === "escalated" && <span style={{ fontSize: 10, color: "#22c55e" }}><i className="fa fa-flag" /> escalated</span>}
-                {a.status !== "escalated" && <span style={{ fontSize: 10, color: "#8aa0c2", alignSelf: "center" }}>{a.status}</span>}
+                {a.status !== "escalated" && <span style={{ fontSize: 10, color: "var(--gc-muted)", alignSelf: "center" }}>{a.status}</span>}
               </div>
             </div>
           ))}
@@ -58,12 +58,12 @@ export default function SocWorkspace({ sim, canPlay, runTool, events }:
         {/* live detections strip */}
         <div className="ws-card" style={{ maxHeight: 132, overflowY: "auto", flexShrink: 0 }}>
           <h3><i className="fa fa-wave-square" /> Live detections</h3>
-          {detections.length === 0 && <div style={{ fontSize: 11.5, color: "#8aa0c2" }}>No telemetry yet.</div>}
+          {detections.length === 0 && <div style={{ fontSize: 11.5, color: "var(--gc-muted)" }}>No telemetry yet.</div>}
           {detections.map((e, i) => (
             <div key={i} style={{ fontSize: 11, marginBottom: 2 }}>
               <span style={{ color: "#475569" }}>[{fmtT(e.t)}] </span>
               <span style={{ color: SEV_COLOR[e.severity], textTransform: "uppercase", fontSize: 9 }}>{e.data?.telemetry || "log"}</span>{" "}
-              <span style={{ color: "#cbd5e1" }}>{e.title}</span>
+              <span style={{ color: "var(--gc-text2)" }}>{e.title}</span>
               <span style={{ color: "#64748b" }}> — {e.message}</span>
             </div>
           ))}
@@ -72,7 +72,7 @@ export default function SocWorkspace({ sim, canPlay, runTool, events }:
         {/* query palette */}
         <div className="ws-card" style={{ flexShrink: 0 }}>
           <h3>SIEM queries &amp; hunts</h3>
-          {canPlay && !busy && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 6 }}><i className="fa fa-keyboard" /> click a source to read its briefing, stage the query, then type it below.</div>}
+          {canPlay && !busy && <div style={{ fontSize: 10.5, color: "var(--gc-muted)", marginBottom: 6 }}><i className="fa fa-keyboard" /> click a source to read its briefing, stage the query, then type it below.</div>}
           {busy && <div style={{ fontSize: 10.5, color: "#eab308", marginBottom: 6 }}><i className="fa fa-circle-notch fa-spin" /> {inflight[0].label} is running…</div>}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {queries.map((t: any) => {

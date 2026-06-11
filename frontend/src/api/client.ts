@@ -4,22 +4,46 @@ import type {
   LiveSessionSummary, LiveMission, LabStatus, LabToolRegistry,
 } from "./types";
 
+let authToken: string | null = localStorage.getItem("gc_token");
+export function setAuthToken(t: string | null) {
+  authToken = t;
+  if (t) localStorage.setItem("gc_token", t);
+  else localStorage.removeItem("gc_token");
+}
+function authHeaders(): Record<string, string> {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+function on401() {
+  setAuthToken(null);
+  localStorage.removeItem("gc_user");
+  if (!location.pathname.startsWith("/login")) location.href = "/login";
+}
+
 async function get<T>(url: string): Promise<T> {
-  const r = await fetch(url);
+  const r = await fetch(url, { headers: authHeaders() });
+  if (r.status === 401) { on401(); throw new Error("unauthenticated"); }
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r.json();
 }
 async function post<T>(url: string, body: unknown): Promise<T> {
   const r = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
+  if (r.status === 401 && !url.includes("/auth/login")) { on401(); throw new Error("unauthenticated"); }
   if (!r.ok) throw new Error(`${r.status} ${url}: ${await r.text()}`);
   return r.json();
 }
 
+export interface AuthUser { email: string; name: string; role: string }
+
 export const api = {
+  // ---- Auth ----
+  login: (body: { email: string; password: string }) =>
+    post<{ token: string; user: AuthUser }>("/api/auth/login", body),
+  me: () => get<AuthUser>("/api/auth/me"),
+
   assets: () => get<AssetType[]>("/api/catalog/assets"),
   controls: () => get<ControlType[]>("/api/catalog/controls"),
   techniques: () => get<TechniqueType[]>("/api/catalog/techniques"),
@@ -52,7 +76,7 @@ export const api = {
   // ---- Guided scenarios (the 3 demo walkthroughs: W1/R5/C5) ----
   guidedScenarios: () => get<any[]>("/api/live/guided"),
   guidedScenario: (id: string) => get<any>(`/api/live/guided/${id}`),
-  createGuidedSession: (body: { host_name: string; scenario_id: string }) =>
+  createGuidedSession: (body: { host_name: string; scenario_id: string; mode?: string }) =>
     post<{ session_id: string; player_id: string; scenario_id: string; scenario_name: string; status: string }>(
       "/api/live/guided/sessions", body),
 

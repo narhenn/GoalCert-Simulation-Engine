@@ -1,82 +1,98 @@
-/* Immersive scenario workspace styling + animations. */
+/* Immersive scenario workspace — HYBRID theme: light panels/chrome (to match the app) with dark
+   terminal / console / topology insets (which read best on dark). */
 
-.ws-root { display: flex; flex-direction: column; height: calc(100vh - 56px); background: #070b14; color: #e2e8f0; }
-.ws-topbar { display: flex; align-items: center; gap: 14px; padding: 8px 16px; border-bottom: 1px solid #1f2937; background: #0a0f1c; }
-.ws-tab { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
-  font-size: 13px; font-weight: 600; border: 1px solid transparent; color: #94a3b8; background: transparent; }
-.ws-tab.active { background: #111a2e; }
-.ws-tab .seat { font-size: 9px; padding: 0 5px; border-radius: 4px; background: #1e293b; }
+/* full-height immersive workspace — no app topbar on /play, so it owns the whole viewport */
+.ws-root { display: flex; flex-direction: column; height: 100vh; background: var(--gc-bg); color: var(--gc-text); }
+.ws-topbar { display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-bottom: 1px solid var(--gc-border);
+  background: #fff; box-shadow: var(--shadow-sm); flex-shrink: 0; }
+.ws-icon { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--gc-border2); background: #fff;
+  color: var(--gc-text2); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; font-size: 12px; }
+.ws-icon:hover { color: var(--gc-primary); border-color: var(--gc-primary); background: var(--gc-soft); }
+.mode-chip { font-size: 10.5px; font-weight: 700; padding: 4px 9px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.mode-chip.teach { background: rgba(73,2,162,.1); color: var(--gc-primary); }
+.mode-chip.practice { background: rgba(234,88,12,.12); color: var(--gc-orange); }
+.ws-tab { display: flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 9px; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; border: 1px solid transparent; color: var(--gc-text2); background: transparent; transition: all .16s; white-space: nowrap; }
+.ws-tab:hover { background: var(--gc-soft); }
+.ws-tab.active { background: var(--gc-primary); color: #fff !important; box-shadow: 0 4px 12px rgba(73,2,162,.26); }
+.ws-tab.active i { color: #fff !important; }
+.ws-tab .seat { font-size: 8px; padding: 1px 5px; border-radius: 4px; background: rgba(73,2,162,.12); color: var(--gc-primary); font-weight: 700; }
+.ws-tab.active .seat { background: rgba(255,255,255,.25); color: #fff; }
+@media (max-width: 1100px) { .ws-tab .lbl { display: none; } }
 .ws-body { flex: 1; min-height: 0; overflow: hidden; }
 
-/* topology */
+/* ---- topology (DARK inset — the network map) ---- */
 .topo { display: grid; gap: 12px; }
-.topo-vlan { border: 1px solid #1e293b; border-radius: 10px; padding: 10px; background: #0a1120; min-width: 0; }
+.topo-vlan { border: 1px solid var(--gc-dark-border); border-radius: 12px; padding: 12px; background: var(--gc-dark); min-width: 0; }
 .topo-vlan h4 { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #93a4bd; margin: 0 0 8px; }
 .topo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 8px; }
+/* full-screen view — larger nodes so WS/PC state is clearly legible */
+.topo.big { gap: 16px; }
+.topo.big .topo-grid { grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 12px; }
+.topo.big .node .dot { width: 56px; height: 56px; font-size: 22px; border-radius: 13px; }
+.topo.big .node .nm { font-size: 11px; max-width: 84px; }
+.topo.big .topo-vlan h4 { font-size: 13px; }
 .node { display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
-.node .dot { width: 38px; height: 38px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+.node .dot { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 14px; transition: background .4s, box-shadow .2s; position: relative; }
 .node .nm { font-size: 8.5px; color: #8aa0c2; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .node.pz .dot { box-shadow: 0 0 0 2px #fde047; }
 .node .anchor { position: absolute; bottom: -3px; right: -3px; font-size: 9px; color: #fde047; }
-
 @keyframes strike { 0% { box-shadow: 0 0 0 0 #fff; } 40% { box-shadow: 0 0 14px 4px #fff; } 100% { box-shadow: 0 0 0 0 transparent; } }
 .node.strike .dot { animation: strike .7s ease-out; }
 @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(224,57,43,.0); } 50% { box-shadow: 0 0 12px 3px rgba(224,57,43,.7); } }
 .node.spreading .dot { animation: pulse 1.4s infinite; }
 @keyframes ringpulse { 0% { transform: scale(.6); opacity: .8; } 100% { transform: scale(1.8); opacity: 0; } }
-.scan-ring { position: absolute; inset: 0; border-radius: 9px; border: 2px solid #60a5fa; animation: ringpulse 1.6s infinite; }
+.scan-ring { position: absolute; inset: 0; border-radius: 10px; border: 2px solid #60a5fa; animation: ringpulse 1.6s infinite; }
 
-/* gauges + meters */
 .gauge { font-variant-numeric: tabular-nums; }
-.meter { height: 8px; border-radius: 5px; background: #1e293b; overflow: hidden; }
+.meter { height: 8px; border-radius: 5px; background: var(--gc-soft); overflow: hidden; }
 .meter > span { display: block; height: 100%; }
 
-/* terminal */
-.term { background: #05080f; border-top: 1px solid #1f2937; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
-.term-head { display: flex; align-items: center; gap: 8px; padding: 6px 12px; color: #94a3b8; cursor: pointer; }
-.term-body { overflow-y: auto; padding: 6px 12px; }
+/* ---- terminal (DARK inset) ---- */
+.term { background: #060a12; border: 1px solid var(--gc-dark-border); border-radius: 12px; margin: 10px;
+  font-family: ui-monospace, Menlo, monospace; font-size: 12px; box-shadow: var(--shadow); overflow: hidden; }
+.term-head { display: flex; align-items: center; gap: 8px; padding: 8px 13px; color: #94a3b8; cursor: pointer;
+  background: #0b1322; border-bottom: 1px solid var(--gc-dark-border); }
+.term-body { overflow-y: auto; padding: 8px 13px; color: #cbd5e1; }
 .term-line { margin-bottom: 2px; line-height: 1.5; }
-.term-cmd { color: #22d3ee; }
+.term-cmd { color: #34d399; }
 .term-out { color: #94a3b8; white-space: pre-wrap; margin: 2px 0 6px 12px; max-height: 200px; overflow: auto; }
-/* interactive input */
 .term-prompt { color: #22c55e; white-space: nowrap; }
 .term-typed { color: #e2e8f0; }
 .term-sys { color: #94a3b8; }
 .term-err { color: #f87171; }
 .term-inline { display: flex; align-items: baseline; gap: 6px; margin-top: 3px; }
 .term-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: #e2e8f0;
-  font-family: inherit; font-size: 12px; padding: 0; caret-color: #22d3ee; }
+  font-family: inherit; font-size: 12px; padding: 0; caret-color: #34d399; }
 .term-input::placeholder { color: #475569; }
-.term-stage { margin: 6px 0 2px; padding: 4px 8px; border-left: 2px solid #22d3ee; background: #0a1626;
-  border-radius: 0 6px 6px 0; color: #93a4bd; }
+.term-stage { margin: 6px 0 2px; padding: 5px 9px; border-left: 2px solid #a855f7; background: #160e29;
+  border-radius: 0 6px 6px 0; color: #c4b5e8; }
 .term-target { color: #fde047; }
 .term-tab { color: #475569; }
-
-/* cards / panels */
-.ws-card { border: 1px solid #1e293b; border-radius: 10px; background: #0a1120; padding: 12px; }
-.ws-card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #93a4bd; margin: 0 0 10px; }
-.tool-btn { text-align: left; border: 1px solid #1e293b; border-radius: 8px; padding: 9px 10px; background: #0b1322; color: #e2e8f0;
-  cursor: pointer; width: 100%; display: flex; flex-direction: column; gap: 2px; }
-.tool-btn:hover:not(:disabled) { border-color: #334155; }
-.tool-btn:disabled { opacity: .45; cursor: not-allowed; }
-.tool-btn .t-name { font-size: 12.5px; font-weight: 600; }
-.tool-btn .t-sum { font-size: 10.5px; color: #8aa0c2; }
-
-/* next-step pulse on tool buttons */
-.tool-btn.next-step { border-color: #22d3ee; animation: nextPulse 2s infinite; }
-@keyframes nextPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,211,238,0); } 50% { box-shadow: 0 0 8px 3px rgba(34,211,238,0.35); } }
-
-/* terminal copy-paste */
 .term-body { user-select: text; }
 .term-cmd { cursor: text; user-select: text; }
-.intent-banner { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: #1a1206;
-  border-bottom: 1px solid #b45309; color: #fcd34d; font-size: 12.5px; }
 
-/* AAR report */
-.aar { color: #e2e8f0; }
-.aar-card { border: 1px solid #1e293b; border-radius: 10px; background: #0a1120; padding: 16px; margin-bottom: 14px; }
-.aar-chip { font-size: 11px; padding: 2px 8px; border-radius: 5px; border: 1px solid #334155; }
+/* ---- cards / panels (LIGHT) ---- */
+.ws-card { border: 1px solid var(--gc-border); border-radius: 14px; background: #fff; padding: 14px;
+  color: var(--gc-text); box-shadow: var(--shadow-sm); }
+.ws-card h3 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .8px; color: var(--gc-muted); margin: 0 0 12px; font-weight: 600; }
+.tool-btn { text-align: left; border: 1px solid var(--gc-border); border-radius: 11px; padding: 11px 12px; background: #fff; color: var(--gc-text);
+  cursor: pointer; width: 100%; display: flex; flex-direction: column; gap: 2px; transition: all .16s; box-shadow: var(--shadow-sm); }
+.tool-btn:hover:not(:disabled) { border-color: var(--gc-primary); transform: translateY(-1px); box-shadow: var(--shadow); }
+.tool-btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.tool-btn .t-name { font-size: 12.5px; font-weight: 600; color: var(--gc-text); }
+.tool-btn .t-sum { font-size: 10.5px; color: var(--gc-muted); }
+.tool-btn.next-step { border-color: var(--gc-primary); animation: nextPulse 2s infinite; }
+@keyframes nextPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(73,2,162,0); } 50% { box-shadow: 0 0 10px 3px rgba(73,2,162,0.28); } }
+
+.intent-banner { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff7ed;
+  border-bottom: 1px solid #fdba74; color: #b45309; font-size: 12.5px; }
+
+/* ---- AAR report (light) ---- */
+.aar { color: var(--gc-text); }
+.aar-card { border: 1px solid var(--gc-border); border-radius: 12px; background: #fff; padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow-sm); }
+.aar-chip { font-size: 11px; padding: 2px 8px; border-radius: 5px; border: 1px solid var(--gc-border2); }
 @media print {
   body * { visibility: hidden !important; }
   .aar-print, .aar-print * { visibility: visible !important; }

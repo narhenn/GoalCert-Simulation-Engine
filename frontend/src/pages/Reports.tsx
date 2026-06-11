@@ -32,7 +32,7 @@ export default function Reports() {
         {(runs ?? []).map((r) => (
           <div key={r.id} className="card" style={{ marginBottom: 12, cursor: "pointer" }} onClick={() => nav(`/reports/${r.id}`)}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div><div style={{ fontWeight: 600 }}>{r.scenario_name}</div><div className="muted" style={{ fontSize: 12 }}>{new Date(r.created_at).toLocaleString()} · {r.operator || "Operator"}</div></div>
+              <div><div style={{ fontWeight: 600 }}>{r.scenario_name}</div><div className="muted" style={{ fontSize: 12.5 }}>{new Date(r.created_at).toLocaleString()} · {r.operator || "Operator"}</div></div>
               <div style={{ fontFamily: "var(--mono)" }}><span style={{ color: "var(--gc-red)" }}>R {r.scores.red}</span> · <span style={{ color: "var(--gc-green)" }}>B {r.scores.blue}</span></div>
             </div>
           </div>
@@ -87,12 +87,12 @@ export default function Reports() {
               return (
                 <div key={rc.role} className="card" style={{ padding: 14, borderColor: focused ? accent : "var(--gc-border)", boxShadow: focused ? `0 0 0 1px ${accent}` : "none" }}>
                   <div className="card-header" style={{ marginBottom: 8 }}>
-                    <div className="card-title" style={{ fontSize: 12 }}><i className={`fa ${ROLE_ICON[rc.role] || "fa-user"}`} style={{ color: accent }} /> {rc.title}</div>
+                    <div className="card-title" style={{ fontSize: 12.5 }}><i className={`fa ${ROLE_ICON[rc.role] || "fa-user"}`} style={{ color: accent }} /> {rc.title}</div>
                     <span style={{ fontFamily: "var(--mono)", fontWeight: 700, color: accent }}>{rc.score}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--gc-muted)", marginBottom: 8 }}>{rc.headline} · {rc.tasks_done}/{rc.tasks_total} tasks</div>
+                  <div style={{ fontSize: 12, color: "var(--gc-muted)", marginBottom: 8 }}>{rc.headline} · {rc.tasks_done}/{rc.tasks_total} tasks</div>
                   {Object.entries(rc.kpis).map(([k, v]) => (
-                    <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
+                    <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }}>
                       <span className="muted">{k}</span><span style={{ fontFamily: "var(--mono)" }}>{v}</span>
                     </div>
                   ))}
@@ -100,8 +100,8 @@ export default function Reports() {
                     {rc.tasks.map((t) => {
                       const [icon, color] = STATUS_ICON[t.status] ?? STATUS_ICON.pending;
                       return (
-                        <div key={t.id} style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 11 }} title={t.description}>
-                          <i className={`fa ${icon}`} style={{ color, marginTop: 2, fontSize: 10, width: 11 }} />
+                        <div key={t.id} style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 12 }} title={t.description}>
+                          <i className={`fa ${icon}`} style={{ color, marginTop: 2, fontSize: 11, width: 11 }} />
                           <span style={{ color: t.status === "done" ? "var(--gc-text)" : "var(--gc-muted)", textDecoration: t.status === "blocked" ? "line-through" : "none" }}>{t.label}</span>
                         </div>
                       );
@@ -128,12 +128,12 @@ export default function Reports() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gc-green)", marginBottom: 10 }}>Strengths</div>
-            {kf.strengths.map((s, i) => <div key={i} style={{ display: "flex", gap: 8, fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}><i className="fa fa-check-circle" style={{ color: "var(--gc-green)", marginTop: 3, flexShrink: 0 }} /><span>{s}</span></div>)}
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gc-green)", marginBottom: 10 }}>Strengths</div>
+            {kf.strengths.map((s, i) => <div key={i} style={{ display: "flex", gap: 8, fontSize: 12.5, marginBottom: 8, lineHeight: 1.5 }}><i className="fa fa-check-circle" style={{ color: "var(--gc-green)", marginTop: 3, flexShrink: 0 }} /><span>{s}</span></div>)}
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gc-red)", marginBottom: 10 }}>Weaknesses</div>
-            {kf.weaknesses.map((w, i) => <div key={i} style={{ display: "flex", gap: 8, fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}><i className="fa fa-exclamation-triangle" style={{ color: "var(--gc-red)", marginTop: 3, flexShrink: 0 }} /><span>{w}</span></div>)}
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gc-red)", marginBottom: 10 }}>Weaknesses</div>
+            {kf.weaknesses.map((w, i) => <div key={i} style={{ display: "flex", gap: 8, fontSize: 12.5, marginBottom: 8, lineHeight: 1.5 }}><i className="fa fa-exclamation-triangle" style={{ color: "var(--gc-red)", marginTop: 3, flexShrink: 0 }} /><span>{w}</span></div>)}
           </div>
         </div>
       </div>}
@@ -144,10 +144,10 @@ export default function Reports() {
           {ap.map((step, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
               <div style={{ background: step.result === "blocked" ? "rgba(0,212,255,.08)" : "rgba(255,112,67,.08)", border: `1px solid ${step.result === "blocked" ? "rgba(0,212,255,.3)" : step.severity === "critical" ? "rgba(255,71,87,.4)" : "rgba(255,112,67,.3)"}`, borderRadius: 10, padding: "10px 14px", minWidth: 140, textAlign: "center", opacity: step.result === "blocked" ? 0.7 : 1 }}>
-                <div style={{ fontSize: 10, color: "var(--gc-muted)", fontFamily: "var(--mono)" }}>{step.clock}</div>
-                <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2, color: step.result === "blocked" ? "var(--gc-teal)" : "var(--gc-text)" }}>{step.name}</div>
-                {step.target_name && <div style={{ fontSize: 10, color: "var(--gc-muted)", marginTop: 2 }}>{step.target_name}</div>}
-                {step.result === "blocked" && <div style={{ fontSize: 10, color: "var(--gc-teal)", marginTop: 4, fontWeight: 600 }}>BLOCKED by {step.blocked_by}</div>}
+                <div style={{ fontSize: 11, color: "var(--gc-muted)", fontFamily: "var(--mono)" }}>{step.clock}</div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 2, color: step.result === "blocked" ? "var(--gc-teal)" : "var(--gc-text)" }}>{step.name}</div>
+                {step.target_name && <div style={{ fontSize: 11, color: "var(--gc-muted)", marginTop: 2 }}>{step.target_name}</div>}
+                {step.result === "blocked" && <div style={{ fontSize: 11, color: "var(--gc-teal)", marginTop: 4, fontWeight: 600 }}>BLOCKED by {step.blocked_by}</div>}
                 <div style={{ marginTop: 4 }}><span className={`diff-badge diff-${step.severity === "critical" || step.severity === "high" ? "expert" : step.severity === "medium" ? "hard" : "easy"}`}>{step.severity}</span></div>
               </div>
               {i < ap.length - 1 && <div style={{ width: 24, height: 2, background: step.result === "blocked" ? "var(--gc-muted)" : "var(--gc-accent)", flexShrink: 0 }} />}
@@ -157,22 +157,22 @@ export default function Reports() {
       </div>}
 
       {pa.length > 0 && <div className="card" style={{ marginBottom: 20 }}>
-        <div className="card-header"><div className="card-title"><i className="fa fa-server" /> Per-Asset Risk Assessment</div><span className="muted" style={{ fontSize: 11 }}>{pa.length} assets · sorted by risk</span></div>
+        <div className="card-header"><div className="card-title"><i className="fa fa-server" /> Per-Asset Risk Assessment</div><span className="muted" style={{ fontSize: 12 }}>{pa.length} assets · sorted by risk</span></div>
         <div style={{ overflowX: "auto" }}>
           <table className="score-table"><thead><tr><th>Asset</th><th>Zone</th><th>Crit</th><th>Initial</th><th>Final</th><th>Health</th><th>Targeted</th><th>Detected</th><th>Dwell</th><th>Contained</th><th>Risk</th></tr></thead>
             <tbody>{pa.map((a) => { const hb = healthBadge(a.final_health); return (
               <tr key={a.id}>
-                <td style={{ fontWeight: 600, fontSize: 12 }}>{a.name}<div className="muted" style={{ fontSize: 10 }}>{a.type}</div></td>
+                <td style={{ fontWeight: 600, fontSize: 12.5 }}>{a.name}<div className="muted" style={{ fontSize: 11 }}>{a.type}</div></td>
                 <td><span className="tag">{a.zone}</span></td>
                 <td style={{ fontFamily: "var(--mono)", textAlign: "center" }}>{a.criticality}</td>
-                <td><span style={{ color: stateColor(a.initial_state), fontSize: 11, fontWeight: 600 }}>{a.initial_state}</span></td>
-                <td><span style={{ color: stateColor(a.final_state), fontSize: 11, fontWeight: 600 }}>{a.final_state}</span></td>
-                <td><span style={{ background: hb.bg, color: hb.color, fontSize: 10, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>{hb.label}</span></td>
+                <td><span style={{ color: stateColor(a.initial_state), fontSize: 12, fontWeight: 600 }}>{a.initial_state}</span></td>
+                <td><span style={{ color: stateColor(a.final_state), fontSize: 12, fontWeight: 600 }}>{a.final_state}</span></td>
+                <td><span style={{ background: hb.bg, color: hb.color, fontSize: 11, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>{hb.label}</span></td>
                 <td style={{ fontFamily: "var(--mono)", textAlign: "center" }}>{a.times_targeted || "-"}</td>
-                <td style={{ fontFamily: "var(--mono)", textAlign: "center" }}>{a.times_detected || "-"}{a.detected_by.length > 0 && <div className="muted" style={{ fontSize: 9 }}>{a.detected_by.join(", ")}</div>}</td>
+                <td style={{ fontFamily: "var(--mono)", textAlign: "center" }}>{a.times_detected || "-"}{a.detected_by.length > 0 && <div className="muted" style={{ fontSize: 10.5 }}>{a.detected_by.join(", ")}</div>}</td>
                 <td style={{ fontFamily: "var(--mono)", textAlign: "center" }}>{a.avg_dwell_s > 0 ? `${Math.round(a.avg_dwell_s / 60)}m` : "-"}</td>
                 <td style={{ textAlign: "center" }}>{a.contained ? <i className="fa fa-check" style={{ color: "var(--gc-teal)" }} /> : a.times_targeted > 0 ? <i className="fa fa-times" style={{ color: "var(--gc-red)" }} /> : <span className="muted">-</span>}</td>
-                <td><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 40, height: 6, background: "var(--gc-surface)", borderRadius: 3, overflow: "hidden" }}><div style={{ width: `${a.risk_score}%`, height: "100%", background: riskColor(a.risk_score), borderRadius: 3 }} /></div><span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 700, color: riskColor(a.risk_score) }}>{a.risk_score}</span></div></td>
+                <td><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 40, height: 6, background: "var(--gc-surface)", borderRadius: 3, overflow: "hidden" }}><div style={{ width: `${a.risk_score}%`, height: "100%", background: riskColor(a.risk_score), borderRadius: 3 }} /></div><span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: riskColor(a.risk_score) }}>{a.risk_score}</span></div></td>
               </tr>); })}</tbody>
           </table>
         </div>
@@ -183,7 +183,7 @@ export default function Reports() {
           <div className="card-title" style={{ marginBottom: 12 }}><i className="fa fa-stream" /> Attack Timeline</div>
           <div style={{ maxHeight: 360, overflowY: "auto" }}>
             {report.timeline.map((e, i) => (
-              <div key={i} style={{ display: "flex", gap: 10, fontSize: 12, padding: "6px 0", borderBottom: "1px solid var(--gc-border)" }}>
+              <div key={i} style={{ display: "flex", gap: 10, fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid var(--gc-border)" }}>
                 <span style={{ fontFamily: "var(--mono)", color: "var(--gc-muted)", minWidth: 62 }}>{e.clock}</span>
                 <span className="tag" style={{ background: tagColor(e.type), minWidth: 70, textAlign: "center" }}>{e.type}</span>
                 <span style={{ flex: 1 }}>{e.title}{e.asset ? <span className="muted"> ({e.asset})</span> : null}</span>
@@ -196,8 +196,8 @@ export default function Reports() {
           <table className="score-table"><thead><tr><th>Technique</th><th>Tactic</th><th>Detected</th><th>Blocked</th></tr></thead>
             <tbody>{report.mitre_map.map((m, i) => (
               <tr key={i}>
-                <td><span style={{ fontFamily: "var(--mono)", color: "var(--gc-accent)", fontSize: 11 }}>{m.technique}</span> {m.name}</td>
-                <td className="muted" style={{ fontSize: 12 }}>{m.tactic}</td>
+                <td><span style={{ fontFamily: "var(--mono)", color: "var(--gc-accent)", fontSize: 12 }}>{m.technique}</span> {m.name}</td>
+                <td className="muted" style={{ fontSize: 12.5 }}>{m.tactic}</td>
                 <td style={{ textAlign: "center" }}>{m.detected ? <i className="fa fa-check" style={{ color: "var(--gc-green)" }} /> : <i className="fa fa-times" style={{ color: "var(--gc-red)" }} />}</td>
                 <td style={{ textAlign: "center" }}>{m.blocked ? <i className="fa fa-ban" style={{ color: "var(--gc-teal)" }} /> : <span className="muted">-</span>}</td>
               </tr>
@@ -209,17 +209,17 @@ export default function Reports() {
       <div className="grid-2" style={{ marginBottom: 20 }}>
         <div className="card">
           <div className="card-title" style={{ marginBottom: 14 }}><i className="fa fa-shield-halved" /> Control Effectiveness</div>
-          {ce.length === 0 && <div className="muted" style={{ fontSize: 12 }}>No controls triggered during this run.</div>}
+          {ce.length === 0 && <div className="muted" style={{ fontSize: 12.5 }}>No controls triggered during this run.</div>}
           {ce.map((c) => (
             <div key={c.type} style={{ padding: "10px 0", borderBottom: "1px solid var(--gc-border)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><span style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</span><span style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--gc-accent)" }}>{c.total_actions} actions</span></div>
-              <div style={{ display: "flex", gap: 12, fontSize: 11 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><span style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</span><span style={{ fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--gc-accent)" }}>{c.total_actions} actions</span></div>
+              <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
                 {c.detections > 0 && <span><span style={{ color: "var(--gc-green)" }}>{c.detections}</span> detections</span>}
                 {c.blocks > 0 && <span><span style={{ color: "var(--gc-teal)" }}>{c.blocks}</span> blocks</span>}
                 {c.avg_dwell_s > 0 && <span className="muted">avg dwell {Math.round(c.avg_dwell_s / 60)}m</span>}
               </div>
-              {c.techniques_detected.length > 0 && <div style={{ fontSize: 10, color: "var(--gc-muted)", marginTop: 4 }}>Detected: {c.techniques_detected.join(", ")}</div>}
-              {c.techniques_blocked.length > 0 && <div style={{ fontSize: 10, color: "var(--gc-teal)", marginTop: 2 }}>Blocked: {c.techniques_blocked.join(", ")}</div>}
+              {c.techniques_detected.length > 0 && <div style={{ fontSize: 11, color: "var(--gc-muted)", marginTop: 4 }}>Detected: {c.techniques_detected.join(", ")}</div>}
+              {c.techniques_blocked.length > 0 && <div style={{ fontSize: 11, color: "var(--gc-teal)", marginTop: 2 }}>Blocked: {c.techniques_blocked.join(", ")}</div>}
             </div>
           ))}
         </div>
@@ -229,10 +229,10 @@ export default function Reports() {
             <div className="stats-row" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
               <Mini label="Mean" value={`${Math.round(dw.overall.mean_s / 60)}m`} /><Mini label="Median" value={`${Math.round(dw.overall.median_s / 60)}m`} /><Mini label="Min" value={`${Math.round(dw.overall.min_s / 60)}m`} /><Mini label="Max" value={`${Math.round(dw.overall.max_s / 60)}m`} />
             </div>
-            {dw.worst.asset && <div style={{ fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "rgba(255,71,87,.06)", borderRadius: 8, border: "1px solid rgba(255,71,87,.15)" }}><span style={{ color: "var(--gc-red)", fontWeight: 600 }}>Longest dwell:</span> {dw.worst.asset} ({Math.round(dw.worst.max_dwell_s / 60)}m)</div>}
+            {dw.worst.asset && <div style={{ fontSize: 12.5, marginBottom: 12, padding: "8px 12px", background: "rgba(255,71,87,.06)", borderRadius: 8, border: "1px solid rgba(255,71,87,.15)" }}><span style={{ color: "var(--gc-red)", fontWeight: 600 }}>Longest dwell:</span> {dw.worst.asset} ({Math.round(dw.worst.max_dwell_s / 60)}m)</div>}
             <div className="builder-label">By Asset</div>
-            {dw.by_asset.map((a) => <div key={a.asset} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0" }}><span>{a.asset}</span><span style={{ fontFamily: "var(--mono)", color: a.mean_s > 300 ? "var(--gc-red)" : "var(--gc-green)" }}>{Math.round(a.mean_s / 60)}m ({a.count}x)</span></div>)}
-          </> : <div className="muted" style={{ fontSize: 12 }}>No detections recorded, no dwell time data available.</div>}
+            {dw.by_asset.map((a) => <div key={a.asset} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "4px 0" }}><span>{a.asset}</span><span style={{ fontFamily: "var(--mono)", color: a.mean_s > 300 ? "var(--gc-red)" : "var(--gc-green)" }}>{Math.round(a.mean_s / 60)}m ({a.count}x)</span></div>)}
+          </> : <div className="muted" style={{ fontSize: 12.5 }}>No detections recorded, no dwell time data available.</div>}
         </div>
       </div>
 
@@ -245,30 +245,30 @@ export default function Reports() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: zoneColor(z.status), flexShrink: 0 }} /><span style={{ fontWeight: 600, fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>{z.zone}</span></div>
                 <span className={`diff-badge diff-${z.status === "breached" ? "expert" : z.status === "contained" ? "hard" : "easy"}`}>{z.status}</span>
               </div>
-              <div style={{ display: "flex", gap: 14, fontSize: 11, color: "var(--gc-muted)" }}>
+              <div style={{ display: "flex", gap: 14, fontSize: 12, color: "var(--gc-muted)" }}>
                 <span>{z.assets_total} assets</span>
                 {z.assets_compromised > 0 && <span style={{ color: "var(--gc-red)" }}>{z.assets_compromised} compromised</span>}
                 {z.assets_contained > 0 && <span style={{ color: "var(--gc-teal)" }}>{z.assets_contained} contained</span>}
                 {z.assets_down > 0 && <span style={{ color: "var(--gc-red)" }}>{z.assets_down} down</span>}
                 {z.assets_safe > 0 && <span style={{ color: "var(--gc-green)" }}>{z.assets_safe} safe</span>}
               </div>
-              <div style={{ fontSize: 10, color: "var(--gc-muted)", marginTop: 4 }}>{z.asset_names.join(", ")}</div>
+              <div style={{ fontSize: 11, color: "var(--gc-muted)", marginTop: 4 }}>{z.asset_names.join(", ")}</div>
               {z.breach_pct > 0 && <div className="progress-bar" style={{ marginTop: 6, height: 4 }}><div style={{ width: `${z.breach_pct}%`, height: "100%", background: "var(--gc-red)", borderRadius: 2 }} /></div>}
             </div>
           ))}
         </div>
         <div className="card">
           <div className="card-title" style={{ marginBottom: 14 }}><i className="fa fa-key" /> Credential Escalation</div>
-          {ct.length === 0 ? <div className="muted" style={{ fontSize: 12 }}>No credential escalation occurred during this run.</div> : (
+          {ct.length === 0 ? <div className="muted" style={{ fontSize: 12.5 }}>No credential escalation occurred during this run.</div> : (
             <div style={{ position: "relative", paddingLeft: 24 }}>
               <div style={{ position: "absolute", left: 9, top: 0, bottom: 0, width: 2, background: "var(--gc-border)" }} />
               {ct.map((c, i) => (
                 <div key={i} style={{ position: "relative", marginBottom: 20, paddingLeft: 16 }}>
                   <div style={{ position: "absolute", left: -16, top: 4, width: 14, height: 14, borderRadius: "50%", background: credColor[c.scope] || "var(--gc-muted)", border: "2px solid var(--gc-card)" }} />
-                  <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--gc-muted)" }}>{c.clock}</div>
+                  <div style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--gc-muted)" }}>{c.clock}</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: credColor[c.scope] || "var(--gc-text)", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 }}>{c.scope.replace("_", " ")}</div>
-                  <div style={{ fontSize: 12, marginTop: 2 }}>{c.description}</div>
-                  <div style={{ fontSize: 10, color: "var(--gc-muted)", marginTop: 2 }}>{c.technique} · {c.target}</div>
+                  <div style={{ fontSize: 12.5, marginTop: 2 }}>{c.description}</div>
+                  <div style={{ fontSize: 11, color: "var(--gc-muted)", marginTop: 2 }}>{c.technique} · {c.target}</div>
                 </div>
               ))}
             </div>
@@ -283,7 +283,7 @@ export default function Reports() {
           <div className="card" style={{ marginBottom: 20 }}>
             <div className="card-header">
               <div className="card-title"><i className="fa fa-bug" /> Persistence vs Eradication (IRP ch.04)</div>
-              <span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: pr.eradication_complete ? "var(--gc-green)" : "var(--gc-red)" }}>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 12.5, fontWeight: 700, color: pr.eradication_complete ? "var(--gc-green)" : "var(--gc-red)" }}>
                 {pr.total_eradicated}/{pr.total_planted} eradicated {pr.eradication_complete ? "(complete)" : "(INCOMPLETE)"}
               </span>
             </div>
@@ -292,13 +292,13 @@ export default function Reports() {
               <tbody>
                 {pr.items.map((item: any, i: number) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 600, fontSize: 12 }}>{item.label}</td>
-                    <td className="muted" style={{ fontSize: 12 }}>{item.asset || "-"}</td>
-                    <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{item.clock}</td>
+                    <td style={{ fontWeight: 600, fontSize: 12.5 }}>{item.label}</td>
+                    <td className="muted" style={{ fontSize: 12.5 }}>{item.asset || "-"}</td>
+                    <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{item.clock}</td>
                     <td style={{ textAlign: "center" }}>
                       {item.eradicated
-                        ? <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "rgba(0,230,118,.12)", color: "var(--gc-green)", fontWeight: 600 }}>ERADICATED</span>
-                        : <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "rgba(255,71,87,.12)", color: "var(--gc-red)", fontWeight: 600 }}>SURVIVING</span>
+                        ? <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "rgba(0,230,118,.12)", color: "var(--gc-green)", fontWeight: 600 }}>ERADICATED</span>
+                        : <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "rgba(255,71,87,.12)", color: "var(--gc-red)", fontWeight: 600 }}>SURVIVING</span>
                       }
                     </td>
                   </tr>
@@ -316,7 +316,7 @@ export default function Reports() {
           <div className="card" style={{ marginBottom: 20, border: "1px solid rgba(0,212,255,.2)" }}>
             <div className="card-header">
               <div className="card-title"><i className="fa fa-crosshairs" /> Live-Fire Validation — Model vs Actual</div>
-              <span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: "var(--gc-accent)" }}>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 12.5, fontWeight: 700, color: "var(--gc-accent)" }}>
                 {lf.total_real_executed} attacks executed on real infrastructure
               </span>
             </div>
@@ -329,7 +329,7 @@ export default function Reports() {
               ].map((s, i) => (
                 <div key={i} style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "var(--mono)", color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 10, color: "var(--gc-muted)", marginTop: 4 }}>{s.label}</div>
+                  <div style={{ fontSize: 11, color: "var(--gc-muted)", marginTop: 4 }}>{s.label}</div>
                 </div>
               ))}
             </div>
@@ -338,24 +338,24 @@ export default function Reports() {
               <tbody>
                 {(lf.results || []).filter((r: any) => r.real_executed).map((r: any, i: number) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 600, fontSize: 12 }}>{r.technique}<br/><span style={{ fontSize: 10, color: "var(--gc-muted)" }}>{r.mitre_id}</span></td>
-                    <td className="muted" style={{ fontSize: 12 }}>{r.target}</td>
+                    <td style={{ fontWeight: 600, fontSize: 12.5 }}>{r.technique}<br/><span style={{ fontSize: 11, color: "var(--gc-muted)" }}>{r.mitre_id}</span></td>
+                    <td className="muted" style={{ fontSize: 12.5 }}>{r.target}</td>
                     <td style={{ textAlign: "center" }}>
-                      <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: r.model_detected ? "rgba(0,230,118,.12)" : "rgba(255,71,87,.12)", color: r.model_detected ? "var(--gc-green)" : "var(--gc-red)", fontWeight: 600 }}>
+                      <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: r.model_detected ? "rgba(0,230,118,.12)" : "rgba(255,71,87,.12)", color: r.model_detected ? "var(--gc-green)" : "var(--gc-red)", fontWeight: 600 }}>
                         {r.model_detected ? `DETECTED ${r.model_detect_time_s}s` : "MISSED"}
                       </span>
                     </td>
                     <td style={{ textAlign: "center" }}>
                       {r.real_success
-                        ? <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(0,230,118,.12)", color: "var(--gc-green)", fontWeight: 600 }}>SUCCESS</span>
-                        : <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(255,71,87,.12)", color: "var(--gc-red)", fontWeight: 600 }}>FAILED</span>
+                        ? <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "rgba(0,230,118,.12)", color: "var(--gc-green)", fontWeight: 600 }}>SUCCESS</span>
+                        : <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "rgba(255,71,87,.12)", color: "var(--gc-red)", fontWeight: 600 }}>FAILED</span>
                       }
                     </td>
-                    <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{r.tool}</td>
+                    <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{r.tool}</td>
                     <td style={{ textAlign: "center" }}>
                       {r.real_detected
-                        ? <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(0,230,118,.12)", color: "var(--gc-green)", fontWeight: 600 }}>DETECTED</span>
-                        : <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(255,71,87,.12)", color: "var(--gc-red)", fontWeight: 600 }}>MISSED</span>
+                        ? <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "rgba(0,230,118,.12)", color: "var(--gc-green)", fontWeight: 600 }}>DETECTED</span>
+                        : <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "rgba(255,71,87,.12)", color: "var(--gc-red)", fontWeight: 600 }}>MISSED</span>
                       }
                     </td>
                   </tr>
@@ -370,18 +370,18 @@ export default function Reports() {
         <div className="card">
           <div className="card-title" style={{ marginBottom: 12 }}><i className="fa fa-gavel" /> Regulatory Impact</div>
           {report.regulatory_impact.map((r, i) => (
-            <div key={i} className="alert-item warning" style={{ fontSize: 12, display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <div key={i} className="alert-item warning" style={{ fontSize: 12.5, display: "flex", gap: 8, alignItems: "flex-start" }}>
               <i className="fa fa-balance-scale" style={{ color: r.on_time ? "var(--gc-green)" : "var(--gc-yellow)", marginRight: 4, marginTop: 2 }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>{r.framework_name}{r.deadline_hours > 0 ? ` (${r.deadline_hours >= 24 ? `${Math.round(r.deadline_hours / 24)}d` : `${r.deadline_hours}h`})` : ""}</div>
-                <div style={{ fontSize: 11, color: "var(--gc-muted)", marginTop: 2 }}>{r.message}</div>
-                {r.penalty && <div style={{ fontSize: 10, color: "var(--gc-red)", marginTop: 2 }}>{r.penalty}</div>}
+                <div style={{ fontSize: 12, color: "var(--gc-muted)", marginTop: 2 }}>{r.message}</div>
+                {r.penalty && <div style={{ fontSize: 11, color: "var(--gc-red)", marginTop: 2 }}>{r.penalty}</div>}
               </div>
-              {r.on_time !== undefined && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: r.on_time ? "rgba(0,230,118,.12)" : "rgba(255,71,87,.12)", color: r.on_time ? "var(--gc-green)" : "var(--gc-red)", whiteSpace: "nowrap" }}>{r.on_time ? "ON TIME" : "LATE"}</span>}
+              {r.on_time !== undefined && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: r.on_time ? "rgba(0,230,118,.12)" : "rgba(255,71,87,.12)", color: r.on_time ? "var(--gc-green)" : "var(--gc-red)", whiteSpace: "nowrap" }}>{r.on_time ? "ON TIME" : "LATE"}</span>}
             </div>
           ))}
           <div className="card-title" style={{ margin: "16px 0 8px" }}><i className="fa fa-coins" /> Financial Impact Drivers</div>
-          {fin.drivers.map((d, i) => <div key={i} className="muted" style={{ fontSize: 12, padding: "3px 0" }}>- {d}</div>)}
+          {fin.drivers.map((d, i) => <div key={i} className="muted" style={{ fontSize: 12.5, padding: "3px 0" }}>- {d}</div>)}
           {(fin.estimate_low_usd + fin.estimate_high_usd > 0) && <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(255,71,87,.06)", borderRadius: 8, border: "1px solid rgba(255,71,87,.15)", fontFamily: "var(--mono)", fontSize: 14, fontWeight: 700, color: "var(--gc-red)" }}>${(fin.estimate_low_usd / 1e6).toFixed(1)}M - ${(fin.estimate_high_usd / 1e6).toFixed(1)}M estimated</div>}
         </div>
         <div className="card">
@@ -391,11 +391,11 @@ export default function Reports() {
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--gc-accent2)", marginTop: 4 }}>{report.maturity_score.band}</div>
           </div>
           {mb && <div style={{ marginTop: 12 }}>{Object.entries(mb).map(([label, value]) => (
-            <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "5px 0" }}>
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, padding: "5px 0" }}>
               <span>{label}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ width: 60, height: 5, background: "var(--gc-surface)", borderRadius: 3, overflow: "hidden" }}><div style={{ width: `${Math.min(100, Math.max(0, (value / 30) * 100))}%`, height: "100%", borderRadius: 3, background: value < 0 ? "var(--gc-red)" : value > 15 ? "var(--gc-green)" : "var(--gc-yellow)" }} /></div>
-                <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 600, color: value < 0 ? "var(--gc-red)" : "var(--gc-green)", minWidth: 30, textAlign: "right" }}>{value > 0 ? "+" : ""}{value}</span>
+                <span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 600, color: value < 0 ? "var(--gc-red)" : "var(--gc-green)", minWidth: 30, textAlign: "right" }}>{value > 0 ? "+" : ""}{value}</span>
               </div>
             </div>
           ))}</div>}
@@ -405,7 +405,7 @@ export default function Reports() {
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-title" style={{ marginBottom: 12 }}><i className="fa fa-list-check" /> Corrective Action Plan</div>
         {report.corrective_actions.map((a, i) => (
-          <div key={i} className="alert-item info" style={{ fontSize: 12 }}>
+          <div key={i} className="alert-item info" style={{ fontSize: 12.5 }}>
             <span className="tag" style={{ background: a.priority === "P1" ? "rgba(255,71,87,.2)" : a.priority === "P2" ? "rgba(255,214,0,.2)" : "rgba(77,208,225,.2)", color: a.priority === "P1" ? "var(--gc-red)" : a.priority === "P2" ? "var(--gc-yellow)" : "var(--gc-teal)", marginRight: 8, fontWeight: 700, flexShrink: 0 }}>{a.priority}</span>
             {a.action}
           </div>
@@ -428,5 +428,5 @@ function Stat({ cls, label, value, sub }: { cls: string; label: string; value: s
   return <div className={`stat-card ${cls}`}><div className="stat-label">{label}</div><div className="stat-value" style={{ fontSize: 20 }}>{value}</div><div className="stat-sub">{sub}</div></div>;
 }
 function Mini({ label, value }: { label: string; value: string | number }) {
-  return <div style={{ background: "var(--gc-surface)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}><div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gc-muted)", marginBottom: 4 }}>{label}</div><div style={{ fontSize: 16, fontWeight: 700, fontFamily: "var(--mono)" }}>{value}</div></div>;
+  return <div style={{ background: "var(--gc-surface)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}><div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gc-muted)", marginBottom: 4 }}>{label}</div><div style={{ fontSize: 16, fontWeight: 700, fontFamily: "var(--mono)" }}>{value}</div></div>;
 }
