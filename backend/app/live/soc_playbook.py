@@ -11,6 +11,7 @@ and per-alert actions (triage / escalate a specific queued alert). Pure catalog 
 """
 from __future__ import annotations
 
+
 from dataclasses import dataclass
 
 from app.engine.world import World

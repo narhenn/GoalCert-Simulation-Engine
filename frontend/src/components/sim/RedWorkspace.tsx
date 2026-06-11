@@ -14,6 +14,7 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
   const [pending, setPending] = useState<StagedCmd | null>(null);
   const red = sim.teams.red;
   const worm = sim.worm;
+  const pz = sim.topology.hosts.find((h: any) => h.patient_zero);
 
   const hostName = (id?: string) => sim.topology.hosts.find((h: any) => h.id === id)?.name;
   const stage = (toolId: string, params: Record<string, string>, command: string, label: string) => {
@@ -28,10 +29,10 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
   const execute = (toolId: string, params: Record<string, string>) => { runTool(toolId, params); setPending(null); };
 
   const objectives = [
+    { label: "Establish a foothold", met: sim.topology.hosts.some((h: any) => ["exploited", "infected", "propagating"].includes(h.state)) },
     { label: "Discover the network", met: sim.topology.hosts.some((h: any) => h.revealed && !h.patient_zero) },
-    { label: "Identify SMBv1 targets", met: sim.topology.hosts.some((h: any) => h.state === "vulnerable") },
-    { label: "Gain a second foothold", met: sim.topology.hosts.some((h: any) => ["exploited", "infected"].includes(h.state) && !h.patient_zero) },
-    { label: "Unleash propagation", met: worm.propagating || worm.infected > 5 },
+    { label: "Move laterally / spread", met: worm.propagating || worm.infected > 1 },
+    { label: "Disable recovery", met: !worm.backups_safe || sim.topology.hosts.some((h: any) => (h.flags || []).includes("recovery_disabled")) },
     { label: "Encrypt for impact", met: worm.impacted > 0 },
   ];
 
@@ -41,11 +42,11 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
         {/* left rail */}
         <div style={{ width: 270, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flexShrink: 0 }}>
           <div className="ws-card">
-            <h3>Incident operator console</h3>
+            <h3>Attacker console</h3>
             <div style={{ fontSize: 12, lineHeight: 1.7 }}>
-              <div>Patient zero: <b style={{ color: "#fde047" }}>FIN-WS-014</b></div>
-              <div>State: <b style={{ color: "#ef4444" }}>Infected</b></div>
-              <div style={{ color: "#8aa0c2", marginTop: 6 }}>Mission: maximize spread before the defenders stop you.</div>
+              <div>Patient zero: <b style={{ color: "#fde047" }}>{pz?.name ?? "—"}</b></div>
+              <div>State: <b style={{ color: "#ef4444" }}>{pz ? pz.state.charAt(0).toUpperCase() + pz.state.slice(1) : "—"}</b></div>
+              <div style={{ color: "#8aa0c2", marginTop: 6 }}>Mission: progress the kill chain and detonate before the defenders stop you.</div>
             </div>
           </div>
           <div className="ws-card">

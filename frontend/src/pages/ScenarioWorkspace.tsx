@@ -49,6 +49,26 @@ export default function ScenarioWorkspace() {
   // default the active tab to your seat once chosen
   useEffect(() => { if (sess?.role) setTab(sess.role); }, [sess?.role]);
 
+  // Guide: surface the latest tool result (with a teaching consequence) as an overlay.
+  // These hooks MUST stay above the early returns below, or the hook order changes between
+  // renders once the snapshot arrives (React: "Rendered more hooks than during the previous render").
+  const [lastResult, setLastResult] = useState<any>(null);
+  const seenGuide = useRef(-1);
+  const simEvents: any[] = (live.state.snapshot as any)?.sim?.events ?? [];
+  useEffect(() => {
+    const fresh = simEvents.filter((e: any) => e.seq > seenGuide.current && e.notify && e.data?.consequence);
+    if (fresh.length) {
+      seenGuide.current = Math.max(seenGuide.current, ...simEvents.map((e: any) => e.seq));
+      const last = fresh[fresh.length - 1];
+      setLastResult({
+        tool_name: last.title, tool_id: last.data?.tool_id || "", team: last.role,
+        consequence: last.data?.consequence || "", next_hint: last.data?.next_hint || "",
+        teaching_note: last.data?.teaching_note || "", command: last.data?.command || "",
+        outcome: last.message,
+      });
+    }
+  }, [simEvents]);  // eslint-disable-line react-hooks/exhaustive-deps
+
   function launch(name: string, role: string) {
     api.createGuidedSession({ host_name: name || "operator", scenario_id: scenarioId }).then((r) => {
       const s = { session_id: r.session_id, player_id: r.player_id, role };
@@ -77,23 +97,6 @@ export default function ScenarioWorkspace() {
   const canPlay = (t: string) => t === myRole;
   const events = sim.events || [];
   const termUrl = lab?.terminal_url;
-
-  // Guide: track last tool result for the teaching overlay
-  const [lastResult, setLastResult] = useState<any>(null);
-  const seenGuide = useRef(-1);
-  useEffect(() => {
-    const fresh = events.filter((e: any) => e.seq > seenGuide.current && e.notify && e.data?.consequence);
-    if (fresh.length) {
-      seenGuide.current = Math.max(seenGuide.current, ...events.map((e: any) => e.seq));
-      const last = fresh[fresh.length - 1];
-      setLastResult({
-        tool_name: last.title, tool_id: last.data?.tool_id || "", team: last.role,
-        consequence: last.data?.consequence || "", next_hint: last.data?.next_hint || "",
-        teaching_note: last.data?.teaching_note || "", command: last.data?.command || "",
-        outcome: last.message,
-      });
-    }
-  }, [events]);
 
   return (
     <div className="ws-root">
@@ -138,9 +141,9 @@ export default function ScenarioWorkspace() {
       <div className="ws-body" style={{ display: "flex" }}>
         <GuidePanel sim={sim} myRole={myRole} scenarioId={scenarioId} />
         <div style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
-          {tab === "red" && <RedWorkspace sim={sim} canPlay={canPlay("red")} runTool={live.runTool} events={events} termUrl={termUrl} />}
+          {tab === "red" && <RedWorkspace sim={sim} canPlay={canPlay("red")} runTool={live.runTool} events={events} termUrl={termUrl} error={live.state.error} />}
           {tab === "soc" && <SocWorkspace sim={sim} canPlay={canPlay("soc")} runTool={live.runTool} events={events} />}
-          {tab === "blue" && <BlueWorkspace sim={sim} canPlay={canPlay("blue")} runTool={live.runTool} />}
+          {tab === "blue" && <BlueWorkspace sim={sim} canPlay={canPlay("blue")} runTool={live.runTool} events={events} error={live.state.error} />}
           {tab === "victim" && <VictimDesktop sim={sim} />}
         </div>
       </div>

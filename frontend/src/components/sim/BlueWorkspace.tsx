@@ -1,23 +1,42 @@
 import { useState } from "react";
 import TopologyMap from "./TopologyMap";
+import Terminal, { StagedCmd } from "./Terminal";
 import ToolWorkspace from "./ToolWorkspace";
-import { fmtUSD, STATE_COLOR, STATE_LABEL } from "./shared";
+import { fmtUSD, STATE_COLOR, STATE_LABEL, toolCommand } from "./shared";
 
-/* BLUE — "I act." Network health dashboard + action center (containment/eradication/recovery) +
-   live business impact. Blue acts; SOC detects. */
-export default function BlueWorkspace({ sim, canPlay, runTool }:
-  { sim: any; canPlay: boolean; runTool: (id: string, p?: Record<string, string>) => void }) {
+/* BLUE — "I respond." Network-health dashboard + a real IR console: stage a containment / eradication
+   / recovery action from the palette, then TYPE its command (PowerShell, EDR, firewall, Veeam) to run
+   it — the same hands-on-keyboard loop as Red, with simulated tool output streaming back. */
+export default function BlueWorkspace({ sim, canPlay, runTool, events, error }:
+  { sim: any; canPlay: boolean; runTool: (id: string, p?: Record<string, string>) => void;
+    events: any[]; error?: string | null }) {
   const [tool, setTool] = useState<any>(null);
+  const [pending, setPending] = useState<StagedCmd | null>(null);
   const blue = sim.teams.blue;
   const worm = sim.worm;
   const counts = sim.topology.counts;
 
+  const hostName = (id?: string) => sim.topology.hosts.find((h: any) => h.id === id)?.name;
+  const stage = (toolId: string, params: Record<string, string>, command: string, label: string) => {
+    const hid = params.host || (params.hosts || "").split(",")[0];
+    setPending({ toolId, params, command, label, targetLabel: hostName(hid) });
+  };
+  const onToolClick = (t: any) => {
+    if (!canPlay || !t.available) return;
+    if (t.schema && t.schema.length) setTool(t);                 // pick targets/options first, then stage
+    else stage(t.id, {}, toolCommand(t), t.name);                // no params → stage right away
+  };
+  const execute = (toolId: string, params: Record<string, string>) => { runTool(toolId, params); setPending(null); };
+
+  // The IR console shows Blue's own actions (its command + simulated result), not Red's.
+  const blueEvents = events.filter((e: any) => e.role === "blue");
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, padding: 12, gap: 12 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       {/* health dashboard */}
-      <div className="ws-card">
+      <div className="ws-card" style={{ margin: "12px 12px 0" }}>
         <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
-          {["healthy", "vulnerable", "infected", "impacted", "contained", "dormant", "recovered"].map((s) => (
+          {["healthy", "vulnerable", "exploited", "infected", "impacted", "contained", "dormant", "recovered"].map((s) => (
             <div key={s} style={{ textAlign: "center" }}>
               <div style={{ fontSize: 17, fontWeight: 800, color: STATE_COLOR[s] }}>
                 {counts[s] || 0}{s === "infected" ? `+${worm.extra_infected || 0}` : s === "impacted" ? `+${worm.extra_impacted || 0}` : ""}
@@ -32,20 +51,29 @@ export default function BlueWorkspace({ sim, canPlay, runTool }:
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0, padding: 12 }}>
         {/* action center + business impact */}
-        <div style={{ width: 280, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flexShrink: 0 }}>
+        <div style={{ width: 290, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flexShrink: 0 }}>
           <div className="ws-card">
-            <h3>Action center · score {blue.score}</h3>
+            <h3>IR action center · score {blue.score}</h3>
             {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-eye" /> spectating — claim Blue to act</div>}
+            {canPlay && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 8 }}><i className="fa fa-keyboard" /> click an action to stage its command, then type it in the console below.</div>}
             <div style={{ display: "grid", gap: 7 }}>
-              {blue.tools.map((t: any) => (
-                <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available} onClick={() => setTool(t)}
-                  title={t.available ? t.summary : t.reason}>
-                  <span className="t-name"><i className="fa fa-shield-halved" style={{ marginRight: 6, color: "#3b82f6" }} />{t.name}</span>
-                  <span className="t-sum">{t.available ? t.summary : `🔒 ${t.reason}`}</span>
-                </button>
-              ))}
+              {blue.tools.map((t: any) => {
+                const staged = pending?.toolId === t.id;
+                return (
+                  <button key={t.id} className="tool-btn" disabled={!canPlay || !t.available}
+                    style={staged ? { borderColor: "#3b82f6", boxShadow: "0 0 0 1px #3b82f655" } : undefined}
+                    onClick={() => onToolClick(t)} title={t.available ? t.summary : t.reason}>
+                    <span className="t-name">
+                      <i className="fa fa-shield-halved" style={{ marginRight: 6, color: "#3b82f6" }} />{t.name}
+                      <span style={{ fontSize: 8, color: "#64748b", marginLeft: 4 }}>{t.stage}</span>
+                      {staged && <span style={{ fontSize: 8, color: "#3b82f6", marginLeft: 4 }}>STAGED ↓</span>}
+                    </span>
+                    <span className="t-sum">{t.available ? t.summary : `🔒 ${t.reason}`}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="ws-card">
@@ -61,7 +89,15 @@ export default function BlueWorkspace({ sim, canPlay, runTool }:
         {/* topology (read-only, so Blue sees the spread) */}
         <div style={{ flex: 1, minWidth: 0 }}><TopologyMap sim={sim} /></div>
       </div>
-      {tool && <ToolWorkspace tool={tool} sim={sim} onRun={runTool} onClose={() => setTool(null)} />}
+
+      <Terminal events={blueEvents} pending={pending} canPlay={canPlay} onExecute={execute} error={error}
+        prompt="blue@ir-console" title="blue@ir-console — incident response"
+        claimMsg="claim the Blue seat to run response actions."
+        hint="stage a response, then type its command…"
+        intro={<>Incident-response console — stage a containment / eradication / recovery action, then <b style={{ color: "#94a3b8" }}>type its command</b> to run it.</>} />
+
+      {tool && <ToolWorkspace tool={tool} sim={sim} mode="stage" onRun={runTool}
+        onStage={(id, p, cmd) => { stage(id, p, cmd, tool.name); setTool(null); }} onClose={() => setTool(null)} />}
     </div>
   );
 }

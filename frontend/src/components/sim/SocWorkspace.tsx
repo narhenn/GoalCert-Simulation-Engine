@@ -1,32 +1,32 @@
 import { useState } from "react";
-import { SEV_COLOR, fmtT } from "./shared";
+import Terminal, { StagedCmd } from "./Terminal";
+import { SEV_COLOR, fmtT, toolCommand } from "./shared";
 
-/* SOC — "I am an analyst." Alert feed (triage→escalate) + investigation lenses over the telemetry
-   funnel (Zeek/Suricata/Splunk/Sysmon/Threat-Hunt) + a SIEM timeline. */
-const LENS: Record<string, { tele: string[]; label: string }> = {
-  zeek: { tele: ["scan", "spread"], label: "Zeek — network flow" },
-  suricata: { tele: ["exploit_signature"], label: "Suricata — IDS" },
-  splunk: { tele: ["scan", "smb_negotiation", "spread"], label: "Splunk — SIEM search" },
-  sysmon: { tele: ["service_create", "shadow_delete", "mass_rename", "file_write"], label: "Sysmon — host telemetry" },
-};
-
+/* SOC — "I am an analyst." Alert queue (triage → escalate) on the left; a real SIEM console on the
+   right where the analyst STAGES a data-source / hunt query and TYPES it to run — matching detections
+   stream back as query output. A live detections strip shows signals arriving in real time. */
 export default function SocWorkspace({ sim, canPlay, runTool, events }:
   { sim: any; canPlay: boolean; runTool: (id: string, p?: Record<string, string>) => void; events: any[] }) {
-  const [lens, setLens] = useState("splunk");
+  const [pending, setPending] = useState<StagedCmd | null>(null);
   const soc = sim.teams.soc;
   const alerts: any[] = sim.alerts || [];
-  const telemetry = events.filter((e) => e.kind === "g_telemetry" || e.kind === "alert");
+  const detections = events.filter((e) => e.kind === "g_telemetry").slice(-8).reverse();
 
+  // SOC palette = the queryable data-sources + hunt (triage/escalate live in the alert feed as buttons)
+  const queries = (soc.tools || []).filter((t: any) => !(t.schema || []).some((f: any) => f.type === "alert"));
   const act = (toolId: string, params?: Record<string, string>) => canPlay && runTool(toolId, params);
+  const stage = (t: any) => { if (canPlay && t.available) setPending({ toolId: t.id, params: {}, command: toolCommand(t), label: t.name }); };
+  const execute = (toolId: string, params: Record<string, string>) => { runTool(toolId, params); setPending(null); };
+  const socEvents = events.filter((e) => e.role === "soc" && e.kind === "response");
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 12, height: "100%", padding: 12, minHeight: 0 }}>
-      {/* alert feed */}
+    <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 12, height: "100%", padding: 12, minHeight: 0 }}>
+      {/* alert queue */}
       <div className="ws-card" style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
-        <h3>Alert feed · SOC score {soc.score}</h3>
-        {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 6 }}><i className="fa fa-eye" /> spectating</div>}
+        <h3>Alert queue · SOC score {soc.score}</h3>
+        {!canPlay && <div style={{ fontSize: 11, color: "#8aa0c2", marginBottom: 6 }}><i className="fa fa-eye" /> spectating — claim SOC to triage</div>}
         <div style={{ flex: 1, overflowY: "auto", display: "grid", gap: 8 }}>
-          {alerts.length === 0 && <div style={{ fontSize: 12, color: "#8aa0c2" }}>No alerts yet. The funnel starts quiet…</div>}
+          {alerts.length === 0 && <div style={{ fontSize: 12, color: "#8aa0c2" }}>No alerts yet. The funnel starts quiet — run a query to hunt for early signals.</div>}
           {alerts.slice().reverse().map((a) => (
             <div key={a.id} style={{ border: "1px solid #1e293b", borderLeft: `3px solid ${SEV_COLOR[a.severity]}`, borderRadius: 6, padding: 8 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600 }}>{a.label}</div>
@@ -35,49 +35,70 @@ export default function SocWorkspace({ sim, canPlay, runTool, events }:
               </div>
               <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                 {a.status === "new" && <button className="btn" style={{ fontSize: 10, padding: "2px 8px" }} disabled={!canPlay}
-                  onClick={() => act("soc_triage", { alert: a.id })}>Triage</button>}
+                  onClick={() => act(triageId(soc), { alert: a.id })}>Triage</button>}
                 {a.status === "triaged" && <button className="btn btn-primary" style={{ fontSize: 10, padding: "2px 8px" }} disabled={!canPlay}
-                  onClick={() => act("soc_escalate", { alert: a.id })}>Escalate to IR</button>}
+                  onClick={() => runTool(escalateId(soc), { alert: a.id })}>Escalate to IR</button>}
                 {a.status === "escalated" && <span style={{ fontSize: 10, color: "#22c55e" }}><i className="fa fa-flag" /> escalated</span>}
                 {a.status !== "escalated" && <span style={{ fontSize: 10, color: "#8aa0c2", alignSelf: "center" }}>{a.status}</span>}
               </div>
             </div>
           ))}
         </div>
-        <button className="btn btn-ghost" style={{ marginTop: 8, fontSize: 11 }} disabled={!canPlay}
-          onClick={() => act("threat_hunt")}><i className="fa fa-crosshairs" /> Threat hunt (reveal hidden footholds)</button>
       </div>
 
-      {/* investigation lenses + timeline */}
+      {/* SIEM console */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
-        <div className="ws-card" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-          <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-            {Object.entries(LENS).map(([k, v]) => (
-              <button key={k} className={"btn" + (lens === k ? " btn-primary" : "")} style={{ fontSize: 11 }}
-                onClick={() => { setLens(k); act(k); }}>{v.label.split(" — ")[0]}</button>
-            ))}
-          </div>
-          <div style={{ fontSize: 11, color: "#93a4bd", marginBottom: 6 }}>{LENS[lens].label}</div>
-          <div style={{ flex: 1, overflowY: "auto", fontFamily: "ui-monospace, monospace", fontSize: 11.5 }}>
-            {telemetry.filter((e) => e.kind === "alert" || LENS[lens].tele.includes(e.data?.telemetry))
-              .slice().reverse().map((e, i) => (
-                <div key={i} style={{ marginBottom: 3 }}>
-                  <span style={{ color: "#475569" }}>[{fmtT(e.t)}] </span>
-                  <span style={{ color: SEV_COLOR[e.severity] }}>{e.title}</span>
-                  <span style={{ color: "#94a3b8" }}> — {e.message}</span>
-                </div>
-              ))}
-          </div>
-        </div>
-        <div className="ws-card" style={{ maxHeight: 160, overflowY: "auto" }}>
-          <h3>SIEM timeline</h3>
-          {events.filter((e) => ["alert", "action", "response", "g_result"].includes(e.kind)).slice(-12).map((e, i) => (
-            <div key={i} style={{ fontSize: 11.5, marginBottom: 3, color: "#cbd5e1" }}>
-              <span style={{ color: "#475569" }}>{fmtT(e.t)}</span> · {e.title}
+        {/* live detections strip */}
+        <div className="ws-card" style={{ maxHeight: 132, overflowY: "auto", flexShrink: 0 }}>
+          <h3><i className="fa fa-wave-square" /> Live detections</h3>
+          {detections.length === 0 && <div style={{ fontSize: 11.5, color: "#8aa0c2" }}>No telemetry yet.</div>}
+          {detections.map((e, i) => (
+            <div key={i} style={{ fontSize: 11, marginBottom: 2 }}>
+              <span style={{ color: "#475569" }}>[{fmtT(e.t)}] </span>
+              <span style={{ color: SEV_COLOR[e.severity], textTransform: "uppercase", fontSize: 9 }}>{e.data?.telemetry || "log"}</span>{" "}
+              <span style={{ color: "#cbd5e1" }}>{e.title}</span>
+              <span style={{ color: "#64748b" }}> — {e.message}</span>
             </div>
           ))}
+        </div>
+
+        {/* query palette */}
+        <div className="ws-card" style={{ flexShrink: 0 }}>
+          <h3>SIEM queries &amp; hunts</h3>
+          {canPlay && <div style={{ fontSize: 10.5, color: "#8aa0c2", marginBottom: 6 }}><i className="fa fa-keyboard" /> click a source to stage its query, then type it in the console.</div>}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {queries.map((t: any) => {
+              const staged = pending?.toolId === t.id;
+              return (
+                <button key={t.id} className={"btn" + (staged ? " btn-primary" : "")} disabled={!canPlay || !t.available}
+                  style={{ fontSize: 11 }} onClick={() => stage(t)} title={t.available ? t.summary : t.reason}>
+                  <i className={`fa ${t.effect === "hunt" ? "fa-crosshairs" : "fa-magnifying-glass"}`} /> {t.name}
+                  {staged && <span style={{ marginLeft: 4, fontSize: 8 }}>↓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* the typed SIEM console */}
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <Terminal events={socEvents} pending={pending} canPlay={canPlay} onExecute={execute} height={320}
+            prompt="soc@siem" title="soc@siem — investigation console"
+            claimMsg="claim the SOC seat to run queries."
+            hint="stage a query, then type it to search…"
+            intro={<>SIEM console — stage a data source above, then <b style={{ color: "#94a3b8" }}>type its query</b> to search the index. Matching detections stream back as results.</>} />
         </div>
       </div>
     </div>
   );
+}
+
+// triage/escalate tool ids differ per scenario (soc_triage/soc_escalate for W1, triage_r5/escalate_r5 for R5)
+function triageId(soc: any): string {
+  const t = (soc.tools || []).find((x: any) => (x.schema || []).some((f: any) => f.type === "alert" && f.filter === "new"));
+  return t ? t.id : "soc_triage";
+}
+function escalateId(soc: any): string {
+  const t = (soc.tools || []).find((x: any) => (x.schema || []).some((f: any) => f.type === "alert" && f.filter === "triaged"));
+  return t ? t.id : "soc_escalate";
 }

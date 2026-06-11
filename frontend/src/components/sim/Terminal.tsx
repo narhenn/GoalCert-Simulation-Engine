@@ -1,4 +1,4 @@
-import { KeyboardEvent, useEffect, useRef, useState } from "react";
+import { KeyboardEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { fmtT, normCmd } from "./shared";
 
 export interface StagedCmd {
@@ -13,9 +13,12 @@ export interface StagedCmd {
    in from the event log; the operator STAGES a tool from the palette, then must TYPE its real command
    here to fire it (Tab autocompletes; `help`/`clear` are built in). That hands-on-keyboard loop is
    the "real hack" feel — no more one-click run. */
-export default function Terminal({ events, termUrl, pending, canPlay, onExecute, error, height = 230 }:
+export default function Terminal({ events, termUrl, pending, canPlay, onExecute, error, height = 230,
+  prompt = "kali@gc-attacker", title = "kali@gc-attacker — terminal", intro, claimMsg = "claim the Red seat to run tools.",
+  hint = "stage a tool, then type its command…" }:
   { events: any[]; termUrl?: string | null; pending: StagedCmd | null; canPlay: boolean;
-    onExecute: (toolId: string, params: Record<string, string>) => void; error?: string | null; height?: number }) {
+    onExecute: (toolId: string, params: Record<string, string>) => void; error?: string | null; height?: number;
+    prompt?: string; title?: string; intro?: ReactNode; claimMsg?: string; hint?: string }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(true);
@@ -54,20 +57,20 @@ export default function Terminal({ events, termUrl, pending, canPlay, onExecute,
     setHist((h) => (h[h.length - 1] === cmd ? h : [...h, cmd]));
 
     if (cmd === "clear") { setScratch([]); return; }
-    if (cmd === "whoami") { echo("cmd", cmd); echo("sys", "kali"); return; }
+    if (cmd === "whoami") { echo("cmd", cmd); echo("sys", prompt.split("@")[0]); return; }
     if (cmd === "help") {
       echo("cmd", cmd);
       echo("sys", pending
         ? `staged: ${pending.label} — type:  ${pending.command}   (Tab autocompletes)`
-        : "stage a tool from the Kali palette on the left, then type its command here. built-ins: help · clear");
+        : "stage a tool from the palette on the left, then type its command here. built-ins: help · clear");
       return;
     }
     if (!pending) {
       echo("cmd", cmd);
-      echo("err", "no command staged — pick a Kali tool from the palette, then type the command it shows.");
+      echo("err", "no command staged — pick a tool from the palette, then type the command it shows.");
       return;
     }
-    if (!canPlay) { echo("cmd", cmd); echo("err", "claim the Red seat to run tools."); return; }
+    if (!canPlay) { echo("cmd", cmd); echo("err", claimMsg); return; }
     if (normCmd(cmd) === normCmd(pending.command)) {
       onExecute(pending.toolId, pending.params);     // output streams back via events; scratch auto-clears
     } else {
@@ -95,7 +98,7 @@ export default function Terminal({ events, termUrl, pending, canPlay, onExecute,
     <div className="term">
       <div className="term-head" onClick={() => setOpen((o) => !o)}>
         <i className={`fa ${open ? "fa-chevron-down" : "fa-chevron-up"}`} />
-        <i className="fa fa-terminal" /> kali@gc-attacker — terminal
+        <i className="fa fa-terminal" /> {title}
         <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
           {termUrl && <a href={termUrl} target="_blank" rel="noreferrer" style={{ color: "#22d3ee" }}
             onClick={(e) => e.stopPropagation()}><i className="fa fa-up-right-from-square" /> real shell</a>}
@@ -105,13 +108,13 @@ export default function Terminal({ events, termUrl, pending, canPlay, onExecute,
       {open && (
         <div className="term-body" ref={bodyRef} style={{ height }} onClick={() => inputRef.current?.focus()}>
           <div style={{ color: "#64748b" }}>
-            GoalCert Kali — stage a tool from the palette, then <b style={{ color: "#94a3b8" }}>type its command</b> to run it.
-            Built-ins: <span className="term-cmd">help</span> · <span className="term-cmd">clear</span> · Tab autocompletes.
+            {intro ?? <>stage a tool from the palette, then <b style={{ color: "#94a3b8" }}>type its command</b> to run it.</>}
+            {" "}Built-ins: <span className="term-cmd">help</span> · <span className="term-cmd">clear</span> · Tab autocompletes.
           </div>
           {lines.map((e, i) => <Line key={i} e={e} />)}
           {scratch.map((l, i) => (
             <div key={"s" + i} className="term-line">
-              {l.cls === "cmd" && <span className="term-prompt">kali@gc-attacker:~$ </span>}
+              {l.cls === "cmd" && <span className="term-prompt">{prompt}:~$ </span>}
               <span className={l.cls === "err" ? "term-err" : l.cls === "cmd" ? "term-typed" : "term-sys"}>{l.text}</span>
             </div>
           ))}
@@ -125,10 +128,10 @@ export default function Terminal({ events, termUrl, pending, canPlay, onExecute,
           )}
 
           <div className="term-inline">
-            <span className="term-prompt">kali@gc-attacker:~$</span>
+            <span className="term-prompt">{prompt}:~$</span>
             <input ref={inputRef} className="term-input" value={input} spellCheck={false} autoFocus
               autoComplete="off" autoCorrect="off" autoCapitalize="off"
-              placeholder={pending ? "type the staged command…" : (canPlay ? "stage a tool, then type its command…" : "spectating — claim Red to run tools")}
+              placeholder={pending ? "type the staged command…" : (canPlay ? hint : "spectating — " + claimMsg)}
               onChange={(e) => setInput(e.target.value)} onKeyDown={onKey} />
           </div>
         </div>
@@ -140,6 +143,7 @@ export default function Terminal({ events, termUrl, pending, canPlay, onExecute,
 function Line({ e }: { e: any }) {
   const lf = e.data?.live_fire;
   const cmd = e.data?.command;
+  const result = e.data?.result;          // simulated output for sim/act tools (no real lab fire)
   return (
     <div className="term-line">
       <span style={{ color: "#475569" }}>[{fmtT(e.t)}] </span>
@@ -156,6 +160,7 @@ function Line({ e }: { e: any }) {
           {cmd
             ? <span className="term-cmd">$ {cmd}</span>
             : <span style={{ color: "#cbd5e1" }}>{e.title}</span>}
+          {cmd && result && <pre className="term-out">{`> ${result}`}</pre>}
           {e.message && !cmd && <span style={{ color: "#64748b" }}> — {e.message}</span>}
         </>
       )}

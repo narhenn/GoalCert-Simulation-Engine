@@ -152,8 +152,9 @@ def build_r5() -> Topology:
         hosts[hid] = Host(id=hid, name=name, vlan=vlan, role=role, vulnerable=vulnerable,
                           state=state, patient_zero=pz)
 
-    # Finance VLAN — j.harper's workstation is patient zero (phished)
-    add("fin-pc07", "FIN-PC07 (j.harper)", "fin", state="infected", pz=True, vulnerable=True)
+    # Finance VLAN — j.harper's workstation is patient zero. Starts CLEAN: the attacker must phish
+    # the user and land a macro to create the foothold (unlike W1's assumed-breach patient zero).
+    add("fin-pc07", "FIN-PC07 (j.harper)", "fin", state="healthy", pz=True, vulnerable=True)
     for i in (1, 2, 3, 4, 5, 8, 10, 12, 15, 18):
         add(f"fin-{i:03d}", f"FIN-WS-{i:03d}", "fin", vulnerable=(i % 4 != 0))
     # Corporate VLAN
@@ -192,8 +193,9 @@ def build_c5() -> Topology:
 
     # Edge — VPN gateway (attacker's entry point)
     add("vpn-gw", "VPN-GW-01", "edge", role="appserver", vulnerable=True)
-    # Corporate VLAN — large fleet, EDR is down
-    add("eng-ws12", "ENG-WS-12 (m.chen)", "corp", state="infected", pz=True, vulnerable=True)
+    # Corporate VLAN — large fleet, EDR is down. Patient zero starts CLEAN: the crew sprays creds and
+    # walks in over the VPN to create the foothold (the EDR outage is what lets it go unnoticed).
+    add("eng-ws12", "ENG-WS-12 (m.chen)", "corp", state="healthy", pz=True, vulnerable=True)
     for i in (1, 3, 5, 7, 9, 14, 18, 22, 25, 30, 35, 40):
         add(f"corp-{i:03d}", f"CORP-WS-{i:03d}", "corp", vulnerable=(i % 5 != 0))
     # Dev VLAN

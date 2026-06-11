@@ -24,6 +24,30 @@ if TYPE_CHECKING:
 AUTO_EVERY = 3                  # ticks between an auto seat's actions = the telegraph/reaction window
 ROLES = ("soc", "blue", "red")  # defenders telegraph/act before Red each cycle
 
+# Per-scenario narration for the *dynamic* spread tick (the only narration the engine still owns —
+# every other SOC signal is data-driven from the tool's `alert`/`telemetry` fields). Keeps each
+# scenario reading as its own story instead of "WannaCry SMB worm" everywhere.
+SCENARIO_NARRATION: dict[str, dict] = {
+    "scn-wannacry-w1": {
+        "spread_title": "Worm spread",
+        "spread_text": "{n} hosts infected (R≈{r}) — self-propagating over SMBv1/445",
+        "spread_channel": "spread",
+        "lateral_alert": ("Lateral movement (multi-source)", "high", "T1021.002"),
+    },
+    "scn-r5-phishing": {
+        "spread_title": "Hands-on-keyboard lateral movement",
+        "spread_text": "{n} hosts reached (R≈{r}) — RDP/SMB with the stolen svc_backup account",
+        "spread_channel": "network",
+        "lateral_alert": ("Anomalous RDP from service account", "high", "T1021.001"),
+    },
+    "scn-c5-edr": {
+        "spread_title": "Mass lateral movement (EDR blind)",
+        "spread_text": "{n} hosts reached (R≈{r}) — PsExec with Domain Admin, no EDR to stop it",
+        "spread_channel": "network",
+        "lateral_alert": ("PsExec service install across many hosts", "high", "T1021.002"),
+    },
+}
+
 
 @dataclass
 class TeamState:
@@ -45,13 +69,24 @@ class ScenarioSim:
         self.alerts: list[dict] = []
         self.alert_seq = 0
         self.incident_declared: set[str] = set()
-        # worm flags
+        # worm / attack flags
         self.propagating = False
         self.kill_switch: str | None = None           # None | "armed" | "tripped"
         self.segmented = False
         self.smbv1_patched = False
         self.backups_safe = True
         self.r_value = 2.4
+        # Generalised kill-chain levers (used by R5/C5; harmless defaults for W1).
+        # When propagation is credential-driven (human-operated lateral movement) rather than a
+        # vuln-worm, the spread ignores the SMBv1 gate — and Blue can revoke it by resetting creds.
+        self.cred_mode = False                         # spread uses valid creds, not a vuln
+        self.creds_pwned = False                       # Red holds valid domain creds (gates cred tools)
+        self.c2_live = False                           # a Red C2 channel is up (gates C2-dependent tools)
+        self.c2_blocked = False                        # Blue cut the C2 channel
+        self.exfiltrated = False                       # data exfiltration completed (impact, non-encrypt)
+        self.egress_blocked = False                    # Blue blocked the exfil channel (file-sharing sites)
+        self._backup_air_gapped = False                # Blue air-gapped backups (they survive encryption)
+        self.narr = SCENARIO_NARRATION.get(scenario_id, SCENARIO_NARRATION["scn-wannacry-w1"])
         # the unnamed remainder of the 250-host fleet — tracked as aggregates so the worm can reach
         # real scale (Degraded/Catastrophic) without drawing 250 nodes
         self.extra_infected = 0
@@ -122,6 +157,14 @@ class ScenarioSim:
                 pool = [a for a in self.alerts if a["status"] == ("new" if f.filter == "new" else "triaged")]
                 if not pool:
                     return False, f"no {f.filter} alert"
+        # Red kill-chain gates the defenders can revoke (this is what makes containment *partial* and
+        # timing-dependent: cut C2 / reset creds early and Red stalls; too late and the foothold persists).
+        if tool.needs_c2 and (not self.c2_live or self.c2_blocked):
+            return False, "C2 channel is down — re-establish a beacon first"
+        if tool.needs_creds and not self.creds_pwned:
+            return False, "stolen credentials were reset — re-harvest them first"
+        if tool.effect == "exfiltrate" and self.egress_blocked:
+            return False, "egress to file-sharing sites is blocked"
         if tool.effect == "sinkhole" and self.kill_switch != "armed":
             return False, "no kill-switch callback observed yet"
         if tool.effect == "restore" and not self.backups_safe:
@@ -171,26 +214,62 @@ class ScenarioSim:
             self.session.pending_fire.append({"seq": ev["seq"], "action_id": tool.fire_action,
                                               "target_id": thost.id if thost else None})
         else:
+            result = msg or tool.outcome
             self._emit("action" if team == "red" else "response", team, tool.name,
-                       (tool.command_hint + "  ·  " if tool.command_hint else "") + (msg or tool.outcome),
+                       (tool.command_hint + "  ·  " if tool.command_hint else "") + result,
                        sev="high" if team != "red" else "medium",
                        data={"tool_id": tool.id, "kind": tool.kind,
-                             "command": tool.command_hint, "mitigates": tool.mitigates,
+                             "command": tool.command_hint, "result": result, "mitigates": tool.mitigates,
                              **guide_data, **tgt}, notify=True)
+        # Data-driven SOC signals: every scenario narrates its own detections via the tool's
+        # `alert`/`telemetry` fields (the engine no longer hardcodes WannaCry strings).
+        self._raise_signals(tool, thost)
         self._check_finish()
         return True, ""
+
+    def _raise_signals(self, tool: TL.Tool, host: T.Host | None) -> None:
+        """Emit the SOC alert + investigation-lens telemetry this tool declares (data-driven)."""
+        if tool.telemetry:
+            ch, title, text, *rest = (*tool.telemetry, "")
+            sev = rest[0] if rest and rest[0] else "low"
+            self._emit("g_telemetry", "soc", title, text, sev=sev, data={"telemetry": ch})
+        if tool.alert:
+            label, sev, *rest = (*tool.alert, "")
+            mitre = rest[0] if rest else ""
+            self._alert(label, host, sev or "medium", mitre)
+
+    def _patient_zero(self) -> T.Host | None:
+        return next((h for h in self.topo.hosts.values() if h.patient_zero), None)
+
+    def _backup_protected(self) -> bool:
+        return self._backup_air_gapped
+
+    def _seed_cred_foothold(self) -> None:
+        """Human-operated lateral movement plants a foothold on a reachable high-value server using
+        valid creds (no vuln needed). Backup/file/DC first — that's what a ransomware crew goes for."""
+        sources = [h for h in self.topo.hosts.values() if h.state in T.LIVE_INFECTED]
+        reach: set[str] = set()
+        for s in sources:
+            reach |= self.topo.reachable_vlans(s.vlan)
+        priority = ("backup", "fileserver", "domain_controller", "database", "appserver")
+        cands = [h for h in self.topo.hosts.values()
+                 if h.vlan in reach and h.revealed and h.state in ("healthy", "vulnerable")
+                 and not h.patient_zero]
+        cands.sort(key=lambda h: priority.index(h.role) if h.role in priority else 99)
+        if cands:
+            cands[0].state = "infected"
 
     def _apply(self, tool: TL.Tool, params: dict) -> str:
         eff = tool.effect
         topo = self.topo
         # ---- RED ----
         if eff == "reveal_hosts":
-            rng = params.get("range", "subnet")
+            # nmap-style passes range=subnet (local only); AD-enum tools (no schema) reveal everything.
+            pz = self._patient_zero()
+            rng = params.get("range", "all")
             for h in topo.hosts.values():
-                if rng == "all" or h.vlan == "fin":
+                if rng == "all" or (pz and h.vlan == pz.vlan):
                     h.revealed = True
-            self._emit("g_telemetry", "soc", "Port-445 scan", "Horizontal TCP/445 fan-out from one source "
-                       "(LOW signal — easy to miss)", sev="low", data={"telemetry": "scan"})
             return f"{sum(1 for h in topo.hosts.values() if h.revealed)} hosts discovered"
         if eff == "mark_vulnerable":
             n = 0
@@ -199,44 +278,77 @@ class ScenarioSim:
                 if h.vulnerable and h.state == "healthy":
                     h.state = "vulnerable"
                     n += 1
-            self._emit("g_telemetry", "soc", "SMBv1 negotiation", "Legacy SMBv1 dialect to many hosts "
-                       "(LOW–MEDIUM)", sev="low", data={"telemetry": "smb_negotiation"})
-            return f"{n} SMBv1-vulnerable hosts identified"
+            return f"{n} vulnerable hosts identified"
+        if eff == "deliver_phish":
+            pz = self._patient_zero()
+            if pz is None:
+                return "no target user"
+            pz.revealed = True
+            pz.flags.add("phish_delivered")
+            return f"weaponised email delivered to {pz.name} — awaiting the click"
+        if eff == "spray":
+            # password spray = initial credential compromise (gates the VPN foothold via unlocks_after)
+            return "5 of 200 accounts compromised — valid VPN credentials obtained"
         if eff == "exploit":
-            h = topo.hosts.get(params.get("host", ""))
+            # host-targeted (W1 EternalBlue) OR auto-targets patient zero (R5 macro / C5 vpn foothold)
+            h = topo.hosts.get(params.get("host", "")) or self._patient_zero()
             if h is None or h not in self._hosts_for("exploitable"):
                 return "select a valid vulnerable host"
             h.state = "exploited"
-            self._alert("Exploit signature (SMBv1)", h, "high", "T1210")
             return f"{h.name} exploited"
         if eff == "infect":
-            h = topo.hosts.get(params.get("host", ""))
+            h = (topo.hosts.get(params.get("host", ""))
+                 or next((x for x in topo.hosts.values() if x.state == "exploited"), None))
             if h is None or h.state != "exploited":
                 return "select an exploited host"
             h.state = "infected"
-            self._alert("Suspicious payload write", h, "medium", "T1059.003")
             return f"{h.name} infected"
-        if eff == "persist":
+        if eff == "c2_establish":
+            self.c2_live = True
+            self.c2_blocked = False
+            # the beacon turns the exploited foothold into a live, hands-on-keyboard infection
+            promoted = 0
             for h in topo.hosts.values():
-                if h.state in T.LIVE_INFECTED:
-                    h.flags.add("persistent")
-            self._alert("New service / autorun", None, "medium", "T1543")
-            return "persistence established on infected hosts"
+                if h.state == "exploited":
+                    h.state = "infected"
+                    promoted += 1
+            return "C2 beacon established — hands-on-keyboard access" + (
+                f" on {promoted} host(s)" if promoted else "")
+        if eff == "cred_dump":
+            self.creds_pwned = True
+            return "domain credentials harvested from LSASS memory"
+        if eff == "persist":
+            n = 0
+            for h in topo.hosts.values():
+                if h.state in T.LIVE_INFECTED or h.state == "exploited":
+                    h.flags.add("persistent"); n += 1
+            return f"persistence established on {n} host(s)"
         if eff == "killswitch_check":
             self.kill_switch = "armed"
-            self._alert("Outbound to newly-seen domain", None, "medium", "T1071.001")
             return "kill-switch domain unreachable — worm proceeds"
         if eff == "start_propagation":
             self.propagating = True
-            self._emit("g_telemetry", "soc", "Multi-source scanning", "Same scan/exploit pattern now from "
-                       "MANY internal hosts (HIGH — it's spreading)", sev="high", data={"telemetry": "spread"})
             return "worm propagation started"
+        if eff == "cred_propagation":
+            # human-operated lateral movement: spread uses *valid creds*, not a vuln, so it ignores the
+            # SMBv1 gate (Blue stops it by resetting creds, not patching). Seed one server foothold now.
+            self.propagating = True
+            self.cred_mode = True
+            self._seed_cred_foothold()
+            return "lateral movement underway with the stolen account"
+        if eff == "exfiltrate":
+            self.exfiltrated = True
+            return "sensitive data staged and uploaded to the attacker's cloud"
         if eff == "disable_recovery":
             for h in topo.hosts.values():
                 if h.state in T.LIVE_INFECTED:
                     h.flags.add("recovery_disabled")
-            self._alert("Shadow-copy deletion", None, "high", "T1490")
-            return "local recovery disabled on infected hosts"
+            # backups only truly die if the backup host itself was reached and isn't air-gapped
+            if not self._backup_protected() and any(
+                    h.role == "backup" and h.state in (T.LIVE_INFECTED | {"impacted"})
+                    for h in topo.hosts.values()):
+                self.backups_safe = False
+            return "local recovery disabled on compromised hosts"
         if eff == "encrypt":
             n = 0
             for h in topo.hosts.values():
@@ -248,9 +360,8 @@ class ScenarioSim:
             n += self.extra_infected
             self.extra_infected = 0
             self.propagating = False           # detonation ends the spread phase
-            self._alert("Mass file rename (.locked)", None, "critical", "T1486")
             return f"{n} hosts encrypted"
-        # ---- BLUE ----
+        # ---- BLUE (every lever is *partial* — it bends the curve, it doesn't end the game) ----
         if eff == "isolate":
             h = topo.hosts.get(params.get("host", ""))
             if h is None or h not in self._hosts_for("containable"):
@@ -259,7 +370,7 @@ class ScenarioSim:
             h.flags.discard("persistent")
             bonus = " (on a SOC-escalated incident)" if h.id in self.incident_declared else ""
             self.teams["blue"].score += 10 if h.id in self.incident_declared else 5
-            return f"{h.name} isolated{bonus}"
+            return f"{h.name} isolated{bonus} — it can no longer spread"
         if eff == "patch_hosts":
             ids = [x for x in params.get("hosts", "").split(",") if x]
             n = 0
@@ -270,13 +381,48 @@ class ScenarioSim:
                     if h.state == "vulnerable":
                         h.state = "healthy"
                     n += 1
-            return f"SMBv1 disabled on {n} host(s)"
+            return f"vulnerable service disabled on {n} host(s)"
         if eff == "segment":
             a, b = (params.get("edge", "fin|srv").split("|") + ["fin", "srv"])[:2]
             topo.cut_edge(a, b)
             self.segmented = True
             self._recompute_r()
-            return f"severed {a.upper()} ↔ {b.upper()} on TCP/445"
+            return f"severed {a.upper()} ↔ {b.upper()} — the blast radius across that boundary is capped"
+        if eff == "disable_cred" or eff == "reset_creds":
+            # Revoke the attacker's valid credentials → cred-driven lateral movement stalls. Hosts
+            # already compromised stay compromised (this bends the curve, it doesn't undo the breach).
+            self.creds_pwned = False
+            if self.cred_mode:
+                self.propagating = False
+                self._recompute_r()
+            verb = "reset" if eff == "reset_creds" else "disabled"
+            return f"compromised accounts {verb} — stolen credentials are now worthless"
+        if eff == "block_c2":
+            self.c2_blocked = True
+            self.c2_live = False
+            return "C2 domain sinkholed at the proxy — the beacon is cut off"
+        if eff == "block_egress":
+            self.egress_blocked = True
+            return "file-sharing sites blocked at the proxy/firewall — the exfiltration channel is cut"
+        if eff == "declare_ir":
+            n = 0
+            for h in topo.hosts.values():
+                if h.state in T.LIVE_INFECTED or h.state == "exploited":
+                    self.incident_declared.add(h.id); n += 1
+            self.teams["blue"].score += 8
+            return f"P1 incident declared — {n} compromised host(s) scoped; containment now coordinated"
+        if eff == "protect_backup":
+            self.backups_safe = True
+            self._backup_air_gapped = True
+            return "backup infrastructure air-gapped — it survives even if everything else encrypts"
+        if eff == "alt_detect":
+            # compensating monitoring during the EDR outage: surfaces footholds that didn't alert
+            n = 0
+            for h in topo.hosts.values():
+                if h.state in T.LIVE_INFECTED and not any(al["host_id"] == h.id for al in self.alerts):
+                    self._alert("Sysmon: compensating-monitoring hit", h, "medium")
+                    n += 1
+            return f"alternate monitoring online — surfaced {n} foothold(s) the dead EDR missed"
         if eff == "sinkhole":
             if self.kill_switch != "armed":
                 return "no kill-switch callback to sinkhole"
@@ -296,8 +442,9 @@ class ScenarioSim:
                     if h.state == "vulnerable":
                         h.state = "healthy"
             self.smbv1_patched = True
-            self.r_value = 0.0
-            return "SMBv1 patched fleet-wide — the vector is gone"
+            if not self.cred_mode:
+                self.r_value = 0.0          # closes the vuln vector (cred-driven spread is unaffected)
+            return "vulnerable service patched fleet-wide — the exploit vector is gone"
         if eff == "restore":
             h = topo.hosts.get(params.get("host", ""))
             if h is None or h.state != "impacted":
@@ -307,7 +454,13 @@ class ScenarioSim:
             return f"{h.name} restored from clean backup"
         # ---- SOC ----
         if eff == "view":
-            return f"inspected telemetry via {tool.name}"
+            chans = set(tool.lens)
+            hits = [e for e in self.events
+                    if e["kind"] == "g_telemetry" and e["data"].get("telemetry") in chans]
+            if not hits:
+                return "0 results — no matching telemetry in the index yet"
+            rows = [f"[{e['t']:>3}s] {e['title']} — {e['message']}" for e in hits[-6:]]
+            return f"{len(hits)} matching event(s):\n" + "\n".join(rows)
         if eff == "hunt":
             n = 0
             for h in topo.hosts.values():
@@ -336,7 +489,12 @@ class ScenarioSim:
         r = 2.4
         if self.segmented:
             r *= 0.4
-        if self.smbv1_patched or self.kill_switch == "tripped":
+        if self.kill_switch == "tripped":
+            r = 0.0
+        elif self.cred_mode:
+            if not self.creds_pwned:        # creds reset → credential-driven spread halts
+                r = 0.0
+        elif self.smbv1_patched:            # vuln-worm patched → exploit vector closed
             r = 0.0
         self.r_value = round(r, 2)
 
@@ -354,7 +512,10 @@ class ScenarioSim:
         return changed
 
     def _propagate(self) -> bool:
-        if not self.propagating or self.smbv1_patched or self.kill_switch == "tripped" or self.r_value <= 0:
+        # A vuln-worm is stopped by patching; credential-driven lateral movement is stopped by
+        # resetting creds (which clears self.propagating). Sinkhole / segment / zero-R stop both.
+        if (not self.propagating or self.kill_switch == "tripped" or self.r_value <= 0
+                or (self.smbv1_patched and not self.cred_mode)):
             return False
         sources = [h for h in self.topo.hosts.values() if h.state in T.LIVE_INFECTED]
         named_live = len(sources)
@@ -364,10 +525,10 @@ class ScenarioSim:
             if h.state == "infected":
                 h.state = "propagating"
         changed = False
-        # spread among the named, drawn hosts (reachability + vulnerability gated)
+        # spread among the named, drawn hosts (reachability-gated; vuln-gated unless cred-driven)
         pool, seen = [], set()
         for s in sources:
-            for t in self.topo.spread_targets(s):
+            for t in self._lateral_targets(s):
                 if t.id not in seen:
                     seen.add(t.id)
                     pool.append(t)
@@ -376,7 +537,7 @@ class ScenarioSim:
             for t in pool[:n]:
                 t.state = "infected"
             changed = True
-        # spread into the unnamed remainder of the fleet (the other ~226 hosts) — geometric in R
+        # spread into the unnamed remainder of the fleet (the rest of the org) — geometric in R
         total_live = named_live + self.extra_infected
         remaining = self.topo.extra_hosts - self.extra_infected - self.extra_impacted - self.extra_dormant
         if remaining > 0 and total_live > 0:
@@ -384,12 +545,24 @@ class ScenarioSim:
             self.extra_infected += grow
             changed = True
         if changed:
-            self._emit("g_telemetry", "soc", "Worm spread",
-                       f"{self.infected_total()} hosts infected (R≈{self.r_value})",
-                       sev="high", data={"telemetry": "spread"}, notify=True)
-            if not any(al["label"].startswith("Lateral") for al in self.alerts[-4:]):
-                self._alert("Lateral movement (multi-source)", None, "high", "T1021.002")
+            nr = self.narr
+            self._emit("g_telemetry", "soc", nr["spread_title"],
+                       nr["spread_text"].format(n=self.infected_total(), r=self.r_value),
+                       sev="high", data={"telemetry": nr["spread_channel"]}, notify=True)
+            la = nr["lateral_alert"]
+            if not any(al["label"] == la[0] for al in self.alerts[-4:]):
+                self._alert(la[0], None, la[1], la[2] if len(la) > 2 else "")
         return changed
+
+    def _lateral_targets(self, src: T.Host) -> list[T.Host]:
+        """Hosts the attack can reach from `src`: vuln-gated for a worm; any reachable revealed host
+        when the attacker moves with valid stolen credentials (cred_mode = human-operated lateral)."""
+        if not self.cred_mode:
+            return self.topo.spread_targets(src)
+        reach = self.topo.reachable_vlans(src.vlan)
+        return [h for h in self.topo.hosts.values()
+                if h.vlan in reach and h.revealed and h.state in ("healthy", "vulnerable")
+                and not h.patient_zero]
 
     # ---- telegraphed auto-drivers -------------------------------------------
     def _is_auto(self, role: str) -> bool:
@@ -424,53 +597,91 @@ class ScenarioSim:
                 changed = changed or ok
         return changed
 
-    def _plan(self, role: str) -> dict | None:
-        """Pick an auto seat's next intended tool + a human-readable label (no execution yet)."""
-        def avail(tid: str) -> bool:
-            t = self.tools.get(tid)
-            return t is not None and self._available(t)[0]
+    def _avail_effect(self, team: str, effect: str) -> TL.Tool | None:
+        return next((t for t in self.tools.values()
+                     if t.team == team and t.effect == effect and self._available(t)[0]), None)
 
+    def _intent_for(self, t: TL.Tool) -> dict | None:
+        """Build {tool_id, params, label} for an auto seat — auto-fills the tool's first target."""
+        params: dict = {}
+        for f in t.schema:
+            if f.type == "host":
+                hs = self._hosts_for(f.filter)
+                if not hs:
+                    return None
+                pick = (next((h for h in hs if h.id in self.incident_declared), hs[0])
+                        if f.filter == "containable" else hs[0])
+                params[f.key] = pick.id
+            elif f.type == "hosts":
+                hs = self._hosts_for(f.filter)
+                if not hs:
+                    return None
+                params[f.key] = ",".join(h.id for h in hs[:5])
+            elif f.type == "alert":
+                want = "new" if f.filter == "new" else "triaged"
+                a = next((x for x in self.alerts if x["status"] == want), None)
+                if a is None:
+                    return None
+                params[f.key] = a["id"]
+            elif f.default:
+                params[f.key] = f.default
+        label = t.name
+        tgt = self.topo.hosts.get(params.get("host", ""))
+        if tgt:
+            label = f"{t.name} → {tgt.name}"
+        return {"tool_id": t.id, "params": params, "label": label}
+
+    def _plan(self, role: str) -> dict | None:
+        """Pick an auto seat's next intended tool. Scenario-agnostic: chosen by *effect* + live state,
+        not hardcoded tool ids, so the same competent driver works for W1/R5/C5."""
         if role == "red":
-            for tid in ("nmap", "netexec"):
-                if avail(tid):
-                    return {"tool_id": tid, "label": self.tools[tid].name}
-            if avail("eternalblue"):
-                h = (self._hosts_for("exploitable") or [None])[0]
-                if h:
-                    return {"tool_id": "eternalblue", "params": {"host": h.id}, "label": f"exploit {h.name}"}
-            if avail("payload"):
-                h = (self._hosts_for("exploited") or [None])[0]
-                if h:
-                    return {"tool_id": "payload", "params": {"host": h.id}, "label": f"infect {h.name}"}
-            for tid in ("propagate", "persistence", "dns_killswitch", "shadow_delete", "ransomware"):
-                if avail(tid):
-                    return {"tool_id": tid, "label": self.tools[tid].name}
+            # walk the kill chain in catalog order — first available step not already taken (recon
+            # tools aren't flagged `once`, so without the done-check the driver would loop on nmap)
+            for t in TL.catalog(self.scenario_id):
+                if (t.team == "red" and t.id not in self.teams["red"].done
+                        and self._available(t)[0]):
+                    intent = self._intent_for(t)
+                    if intent:
+                        return intent
             return None
         if role == "soc":
-            new = next((a for a in self.alerts if a["status"] == "new"), None)
-            if new and avail("soc_triage"):
-                return {"tool_id": "soc_triage", "params": {"alert": new["id"]}, "label": f"triage '{new['label']}'"}
-            tri = next((a for a in self.alerts if a["status"] == "triaged"), None)
-            if tri and avail("soc_escalate"):
-                return {"tool_id": "soc_escalate", "params": {"alert": tri["id"]}, "label": "escalate an incident"}
-            for tid in ("threat_hunt", "splunk", "sysmon"):
-                if avail(tid):
-                    return {"tool_id": tid, "label": self.tools[tid].name}
+            for eff in ("triage", "escalate"):           # clear the queue: validate then escalate
+                t = self._avail_effect("soc", eff)
+                if t:
+                    return self._intent_for(t)
+            # hunt only when there's an undetected live foothold to find
+            if any(h.state in T.LIVE_INFECTED and not any(al["host_id"] == h.id for al in self.alerts)
+                   for h in self.topo.hosts.values()):
+                t = self._avail_effect("soc", "hunt")
+                if t:
+                    return self._intent_for(t)
+            for t in TL.catalog(self.scenario_id):       # otherwise keep an investigation lens warm
+                if (t.team == "soc" and t.effect == "view" and t.id not in self.teams["soc"].done
+                        and self._available(t)[0]):
+                    return self._intent_for(t)
             return None
         if role == "blue":
-            if self.propagating and not self.segmented and avail("segment"):
-                return {"tool_id": "segment", "params": {"edge": "fin|srv"}, "label": "segment Finance ↔ Server"}
-            if self.kill_switch == "armed" and avail("sinkhole"):
-                return {"tool_id": "sinkhole", "label": "sinkhole the kill-switch domain"}
-            cont = self._hosts_for("containable")
-            if cont and avail("edr_quarantine"):
-                pick = next((h for h in cont if h.id in self.incident_declared), cont[0])
-                return {"tool_id": "edr_quarantine", "params": {"host": pick.id}, "label": f"isolate {pick.name}"}
-            if avail("wsus"):
-                return {"tool_id": "wsus", "label": "patch SMBv1 fleet-wide"}
-            imp = self._hosts_for("impacted")
-            if imp and avail("restore"):
-                return {"tool_id": "restore", "params": {"host": imp[0].id}, "label": f"restore {imp[0].name}"}
+            # decisive containment first (by effect + state), then eradication, then recovery
+            order: list[str] = []
+            if self.kill_switch == "armed":
+                order.append("sinkhole")
+            if self.c2_live and not self.c2_blocked:
+                order.append("block_c2")
+            if self.propagating and not self.segmented:
+                order.append("segment")
+            if self.cred_mode and self.creds_pwned:
+                order += ["reset_creds", "disable_cred"]
+            if self._hosts_for("containable"):
+                order.append("isolate")
+            order += ["patch_all", "protect_backup", "declare_ir", "patch_hosts"]
+            if self._hosts_for("impacted"):
+                order.append("restore")
+            for eff in order:
+                t = self._avail_effect("blue", eff)
+                if t:
+                    intent = self._intent_for(t)
+                    if intent:
+                        return intent
             return None
         return None
 
@@ -492,26 +703,39 @@ class ScenarioSim:
         return "Catastrophic"
 
     def financial_loss(self) -> int:
-        return int(self.impacted_total() * (85.0 + 750.0))
+        # encryption impact per host + a flat data-breach cost if data was exfiltrated (double extortion)
+        return int(self.impacted_total() * (85.0 + 750.0) + (1_200_000 if self.exfiltrated else 0))
 
     def _live_threats(self) -> int:
         return sum(1 for h in self.topo.hosts.values()
                    if h.state in T.LIVE_INFECTED or h.state == "exploited")
 
+    def _red_has_moves(self) -> bool:
+        # a "move" = a kill-chain step Red hasn't taken yet that's currently available (re-running
+        # already-done recon doesn't count as progress, so a fully-contained Red is correctly "dead")
+        return any(t.team == "red" and t.id not in self.teams["red"].done and self._available(t)[0]
+                   for t in self.tools.values())
+
     def _check_finish(self) -> bool:
         if self.finished:
             return False
-        ransomed = "ransomware" in self.teams["red"].done
-        # Blue win: no live threats (named or unnamed) + vector neutralised
-        evicted = (self._live_threats() == 0 and self.extra_infected == 0
-                   and (self.smbv1_patched or self.kill_switch == "tripped"))
-        # Red end: impact detonated and the spread phase is over
-        spent = ransomed and not self.propagating
-        # No idle/timeout finish — the run ends only on real eviction, ransomware impact, or a manual
-        # Conclude. A beginner can take as long as they like before acting.
-        if evicted or spent:
+        # Red's terminal move: impact detonated (encryption) and the spread has settled. This is the
+        # ONLY thing that ends a learner-paced run automatically — so a single Blue click can never
+        # cut the scenario short, and every team has room to explore each phase first.
+        impact_done = any(self.tools[t].effect == "encrypt"
+                          for t in self.teams["red"].done if t in self.tools)
+        if impact_done and not self.propagating:
             self._finish()
             return True
+        # Checkmate: only in a *running auto* match, auto-conclude once Red is fully neutralised and
+        # out of moves (and the defenders actually did something). A solo learner is never auto-ended
+        # here — they explore freely and hit Conclude when ready.
+        if self.auto_enabled:
+            red_dead = (self._live_threats() == 0 and self.extra_infected == 0
+                        and not self._red_has_moves())
+            if red_dead and any(self.teams[r].done for r in ("blue", "soc")):
+                self._finish()
+                return True
         return False
 
     def set_auto_enabled(self, on: bool) -> None:
@@ -586,21 +810,23 @@ class ScenarioSim:
 
     # ---- snapshot ------------------------------------------------------------
     def _compute_guide(self) -> dict:
-        """Compute guide state: current phase, next suggested tool per role, progress."""
-        # Map tool stages to ordered phases
+        """Compute guide state: current phase, next suggested tool per role, progress.
+
+        The narrative spine is Red's kill chain — the phases are Red's tool stages, in order — so the
+        story panel reads coherently no matter which role is acting (a SOC query or Blue containment
+        doesn't yank the storyline to a defender 'stage')."""
         all_tools = TL.catalog(self.scenario_id)
+        red_tools = [t for t in all_tools if t.team == "red"]
         stages_seen: list[str] = []
-        for t in all_tools:
+        for t in red_tools:
             if t.stage not in stages_seen:
                 stages_seen.append(t.stage)
 
-        # Determine current phase from the last tool executed
-        all_done = set()
-        for r in ("red", "soc", "blue"):
-            all_done |= self.teams[r].done
+        # Current phase = the furthest kill-chain stage Red has reached
+        red_done = self.teams["red"].done
         current_stage = stages_seen[0] if stages_seen else ""
-        for t in all_tools:
-            if t.id in all_done:
+        for t in red_tools:
+            if t.id in red_done:
                 current_stage = t.stage
 
         phase_idx = stages_seen.index(current_stage) if current_stage in stages_seen else 0
@@ -627,7 +853,8 @@ class ScenarioSim:
             "phases": stages_seen,
             "completed_phases": stages_seen[:phase_idx],
             "next_tools": next_tools,
-            "progress": {"done": len(all_done), "total": len(all_tools)},
+            "progress": {"done": sum(len(self.teams[r].done) for r in ("red", "soc", "blue")),
+                         "total": len(all_tools)},
         }
 
     def snapshot(self) -> dict:
