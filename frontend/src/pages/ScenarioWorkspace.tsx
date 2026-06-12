@@ -8,6 +8,7 @@ import BlueWorkspace from "../components/sim/BlueWorkspace";
 import VictimDesktop from "../components/sim/VictimDesktop";
 import AarReport from "../components/AarReport";
 import GuidePanel from "../components/sim/GuidePanel";
+import JillaChat from "../components/sim/JillaChat";
 import ResultOverlayModal from "../components/sim/ResultOverlay";
 import NotificationDock, { NotifyMsg } from "../components/sim/NotificationDock";
 import { TEAM_META } from "../components/sim/shared";
@@ -167,7 +168,7 @@ export default function ScenarioWorkspace() {
       ))}
 
       <div className="ws-body" style={{ display: "flex" }}>
-        <GuidePanel sim={sim} myRole={myRole} scenarioId={scenarioId} />
+        <JillaChat sim={sim} myRole={myRole} scenarioId={scenarioId} />
         <div style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
           {(() => {
             const st = sim.team_status?.[tab];

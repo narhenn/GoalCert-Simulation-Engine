@@ -36,6 +36,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Decompress rockyou.txt for hydra brute-force steps (R5/C5 scenarios).
+RUN if [ -f /usr/share/wordlists/rockyou.txt.gz ]; then gunzip /usr/share/wordlists/rockyou.txt.gz; fi
+
 # NetExec (nxc) — the maintained CrackMapExec successor. Prefer the distro package; fall back to pipx.
 RUN apt-get update \
     && (apt-get install -y --no-install-recommends netexec \
@@ -53,8 +56,15 @@ COPY dvwa-auth.py /usr/local/bin/dvwa-auth
 RUN chmod +x /usr/local/bin/dvwa-auth
 
 # ttyd — serves an interactive shell over HTTP so a human can drive this real Kali box from a browser.
-RUN curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 \
-        -o /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd
+# Detect architecture and download the correct binary (x86_64 or aarch64 for Apple Silicon).
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+        curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.aarch64 \
+            -o /usr/local/bin/ttyd; \
+    else \
+        curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 \
+            -o /usr/local/bin/ttyd; \
+    fi && chmod +x /usr/local/bin/ttyd
 
 # Quick self-check at build time so a broken image fails the build, not the demo.
 RUN command -v nmap && command -v nikto && command -v gobuster && command -v sqlmap \
