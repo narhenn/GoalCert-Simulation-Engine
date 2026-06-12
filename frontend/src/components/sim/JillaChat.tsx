@@ -1,12 +1,8 @@
 /**
- * JillaChat — AI cybersecurity tutor chat panel.
+ * JillaChat — premium AI cybersecurity tutor chat panel.
  *
- * Replaces the static GuidePanel with an interactive AI assistant that:
- * - Proactively teaches at phase transitions
- * - Responds to student questions with contextual awareness
- * - Progressive hints (4 levels)
- * - Highlights nodes/tools when referenced
- * - Quick-action suggestion buttons
+ * Glassmorphism sidebar with animated messages, typing indicator,
+ * gradient header, spring-animated suggestion chips, progressive hints.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TEAM_META } from "./shared";
@@ -29,14 +25,13 @@ interface Props {
   onHighlightTool?: (toolId: string | null) => void;
 }
 
-const JILLA_AVATAR = "🤖";
-
 export default function JillaChat({ sim, myRole, scenarioId, onHighlightNode, onHighlightTool }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [hintLevel, setHintLevel] = useState(1);
+  const [inputFocused, setInputFocused] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastPhaseRef = useRef("");
   const seqRef = useRef(0);
@@ -49,86 +44,58 @@ export default function JillaChat({ sim, myRole, scenarioId, onHighlightNode, on
     setMessages(prev => [...prev, { ...msg, id: seqRef.current, timestamp: Date.now() }]);
   }, []);
 
-  // Auto-scroll on new messages
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  // Intro message on first load
+  // Intro
   useEffect(() => {
     if (initDone.current) return;
     initDone.current = true;
     fetch(`/api/jilla/intro?role=${myRole}&scenario_id=${scenarioId}`)
       .then(r => r.json())
-      .then(data => {
-        addMessage({ role: "jilla", content: data.message, suggestions: data.suggestions });
-      })
-      .catch(() => {
-        addMessage({
-          role: "jilla",
-          content: `Hey! I'm **Jilla**, your cyber range instructor.\n\nI can see the simulation state and help you learn. Ask me anything!`,
-          suggestions: ["What should I do first?", "Explain this scenario", "Just nudge me"],
-        });
-      });
+      .then(data => addMessage({ role: "jilla", content: data.message, suggestions: data.suggestions }))
+      .catch(() => addMessage({
+        role: "jilla",
+        content: `Hey! I'm **Jilla**, your cyber range instructor.\n\nI can see the simulation state and help you learn. Ask me anything!`,
+        suggestions: ["What should I do first?", "Explain this scenario", "Just nudge me"],
+      }));
   }, [myRole, scenarioId, addMessage]);
 
-  // Proactive phase transition messages
+  // Phase transitions
   useEffect(() => {
     const phase = sim?.guide?.phase;
     if (!phase || phase === lastPhaseRef.current) return;
     lastPhaseRef.current = phase;
-    setHintLevel(1); // Reset hint level on new phase
-
-    // Don't spam on the first phase (intro already covers it)
+    setHintLevel(1);
     if (messages.length < 2) return;
-
     const guide = sim.guide;
     const nextTool = guide?.next_tools?.[myRole];
-    const phaseMsg = `**Phase transition → ${phase}**\n\nYou're now in the **${phase}** phase.${nextTool ? `\n\nNext suggested tool: **${nextTool.name}**` : ""}`;
-
     addMessage({
       role: "jilla",
-      content: phaseMsg,
+      content: `**Phase transition \u2192 ${phase}**\n\nYou're now in the **${phase}** phase.${nextTool ? `\n\nNext suggested tool: **${nextTool.name}**` : ""}`,
       suggestions: ["What should I do?", "Explain this phase", "I'm stuck"],
       highlight_tool: nextTool?.id || null,
     });
   }, [sim?.guide?.phase, myRole, messages.length, addMessage, sim?.guide]);
 
-  // Send message to Jilla API
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
     const userMsg = text.trim();
     setInput("");
     addMessage({ role: "user", content: userMsg });
     setLoading(true);
-
     try {
       const history = messages.slice(-6).map(m => ({
-        role: m.role === "jilla" ? "assistant" : "user",
-        content: m.content,
+        role: m.role === "jilla" ? "assistant" : "user", content: m.content,
       }));
-
       const resp = await fetch("/api/jilla/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMsg,
-          role: myRole,
-          scenario_id: scenarioId,
-          sim_state: sim || {},
-          history,
-        }),
+        body: JSON.stringify({ message: userMsg, role: myRole, scenario_id: scenarioId, sim_state: sim || {}, history }),
       });
       const data = await resp.json();
-
-      addMessage({
-        role: "jilla",
-        content: data.message,
-        suggestions: data.suggestions,
-        highlight_host: data.highlight_host,
-        highlight_tool: data.highlight_tool,
-      });
-
+      addMessage({ role: "jilla", content: data.message, suggestions: data.suggestions, highlight_host: data.highlight_host, highlight_tool: data.highlight_tool });
       if (data.highlight_host) onHighlightNode?.(data.highlight_host);
       if (data.highlight_tool) onHighlightTool?.(data.highlight_tool);
     } catch {
@@ -138,26 +105,16 @@ export default function JillaChat({ sim, myRole, scenarioId, onHighlightNode, on
     }
   }, [loading, messages, myRole, scenarioId, sim, addMessage, onHighlightNode, onHighlightTool]);
 
-  // Get progressive hint
   const getHint = useCallback(async () => {
     setLoading(true);
     try {
       const resp = await fetch("/api/jilla/hint", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: myRole,
-          scenario_id: scenarioId,
-          sim_state: sim || {},
-          hint_level: hintLevel,
-        }),
+        body: JSON.stringify({ role: myRole, scenario_id: scenarioId, sim_state: sim || {}, hint_level: hintLevel }),
       });
       const data = await resp.json();
-      addMessage({
-        role: "jilla",
-        content: data.message,
-        suggestions: data.suggestions,
-      });
+      addMessage({ role: "jilla", content: data.message, suggestions: data.suggestions });
       setHintLevel(prev => Math.min(prev + 1, 4));
     } catch {
       addMessage({ role: "jilla", content: "Hmm, couldn't generate a hint. Try asking me directly!" });
@@ -166,29 +123,32 @@ export default function JillaChat({ sim, myRole, scenarioId, onHighlightNode, on
     }
   }, [myRole, scenarioId, sim, hintLevel, addMessage]);
 
-  // Handle suggestion click
   const handleSuggestion = (text: string) => {
-    if (text.toLowerCase().includes("hint") || text.toLowerCase().includes("stuck")) {
-      getHint();
-    } else {
-      sendMessage(text);
-    }
+    if (text.toLowerCase().includes("hint") || text.toLowerCase().includes("stuck")) getHint();
+    else sendMessage(text);
   };
 
-  // Collapsed state
+  // Render markdown fragments
+  const renderMd = (text: string, isUser: boolean) =>
+    text.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**"))
+        return <strong key={i} style={{ color: isUser ? "#fff" : "var(--gc-text)" }}>{part.slice(2, -2)}</strong>;
+      if (part.startsWith("`") && part.endsWith("`"))
+        return <code key={i} className="jilla-code" style={{
+          background: isUser ? "rgba(255,255,255,0.15)" : "rgba(73,2,162,0.08)",
+          color: isUser ? "#e8d5ff" : "var(--gc-primary)",
+        }}>{part.slice(1, -1)}</code>;
+      return <span key={i}>{part}</span>;
+    });
+
+  // Collapsed rail
   if (collapsed) {
     return (
-      <div style={{ width: 44, background: "#fff", borderRight: "1px solid var(--gc-border)",
-        display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, cursor: "pointer",
-        gap: 8, flexShrink: 0 }}
-        onClick={() => setCollapsed(false)}>
-        <div style={{ fontSize: 20 }}>{JILLA_AVATAR}</div>
-        <div style={{ writingMode: "vertical-rl", fontSize: 10, color: "var(--gc-primary)", fontWeight: 700,
-          letterSpacing: 1 }}>JILLA</div>
+      <div className="jilla-rail" onClick={() => setCollapsed(false)}>
+        <div className="jilla-rail-avatar">J</div>
+        <div className="jilla-rail-label">JILLA</div>
         {messages.length > 0 && (
-          <div style={{ width: 18, height: 18, borderRadius: "50%", background: "var(--gc-primary)",
-            color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center",
-            justifyContent: "center" }}>
+          <div className="jilla-rail-badge">
             {messages.filter(m => m.role === "jilla").length}
           </div>
         )}
@@ -197,81 +157,41 @@ export default function JillaChat({ sim, myRole, scenarioId, onHighlightNode, on
   }
 
   return (
-    <div style={{ width: 320, background: "#fff", borderRight: "1px solid var(--gc-border)",
-      display: "flex", flexDirection: "column", flexShrink: 0 }}>
-
-      {/* Header */}
-      <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--gc-border)",
-        display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 20 }}>{JILLA_AVATAR}</span>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--gc-text)" }}>Jilla</div>
-          <div style={{ fontSize: 10, color: "var(--gc-muted)" }}>AI Instructor · {myRole.toUpperCase()} perspective</div>
+    <div className="jilla-panel">
+      {/* Gradient header */}
+      <div className="jilla-header">
+        <div className="jilla-avatar-ring">
+          <div className="jilla-avatar">J</div>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-          <button onClick={getHint} disabled={loading}
-            style={{ background: "var(--gc-soft)", border: "1px solid var(--gc-border)", borderRadius: 6,
-              padding: "4px 8px", fontSize: 10, fontWeight: 600, color: "var(--gc-primary)", cursor: "pointer" }}
-            title="Get a progressive hint">
-            💡 Hint
-          </button>
-          <button onClick={() => setCollapsed(true)}
-            style={{ background: "none", border: "none", color: "var(--gc-muted)", cursor: "pointer", fontSize: 12 }}>
-            <i className="fa fa-chevron-left" />
-          </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="jilla-name">Jilla</div>
+          <div className="jilla-subtitle">AI Instructor &middot; {myRole.toUpperCase()}</div>
         </div>
+        <button className="jilla-hint-btn" onClick={getHint} disabled={loading} title="Progressive hint">
+          <i className="fa fa-lightbulb" /> Hint {hintLevel > 1 && <span className="jilla-hint-level">L{hintLevel}</span>}
+        </button>
+        <button className="jilla-collapse-btn" onClick={() => setCollapsed(true)}>
+          <i className="fa fa-chevron-left" />
+        </button>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "10px 12px",
-        display: "flex", flexDirection: "column", gap: 10, minHeight: 0 }}>
-        {messages.map(msg => (
-          <div key={msg.id} style={{ display: "flex", flexDirection: "column",
-            alignItems: msg.role === "user" ? "flex-end" : "flex-start", gap: 4 }}>
-
-            {/* Avatar + bubble */}
-            <div style={{ display: "flex", gap: 6, alignItems: msg.role === "user" ? "flex-end" : "flex-start",
-              flexDirection: msg.role === "user" ? "row-reverse" : "row", maxWidth: "92%" }}>
-              {msg.role === "jilla" && (
-                <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--gc-soft)",
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>
-                  {JILLA_AVATAR}
-                </div>
-              )}
-              <div style={{
-                background: msg.role === "user" ? "var(--gc-primary)" : "var(--gc-soft)",
-                color: msg.role === "user" ? "#fff" : "var(--gc-text)",
-                borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                padding: "8px 12px", fontSize: 12.5, lineHeight: 1.6,
-                whiteSpace: "pre-wrap", wordBreak: "break-word",
-              }}>
-                {/* Simple markdown: bold and code */}
-                {msg.content.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
-                  if (part.startsWith("**") && part.endsWith("**")) {
-                    return <strong key={i}>{part.slice(2, -2)}</strong>;
-                  }
-                  if (part.startsWith("`") && part.endsWith("`")) {
-                    return <code key={i} style={{ background: msg.role === "user" ? "rgba(255,255,255,0.2)" : "rgba(73,2,162,0.08)",
-                      padding: "1px 4px", borderRadius: 3, fontFamily: "var(--mono)", fontSize: 11.5 }}>
-                      {part.slice(1, -1)}
-                    </code>;
-                  }
-                  return <span key={i}>{part}</span>;
-                })}
-              </div>
+      <div ref={scrollRef} className="jilla-messages">
+        {messages.map((msg, idx) => (
+          <div key={msg.id} className={`jilla-msg jilla-msg-${msg.role}`}
+            style={{ animationDelay: `${Math.min(idx * 0.05, 0.3)}s` }}>
+            {msg.role === "jilla" && (
+              <div className="jilla-msg-avatar">J</div>
+            )}
+            <div className={`jilla-bubble jilla-bubble-${msg.role}`}>
+              {renderMd(msg.content, msg.role === "user")}
             </div>
 
-            {/* Suggestion buttons */}
             {msg.role === "jilla" && msg.suggestions && msg.suggestions.length > 0 && (
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 30, marginTop: 2 }}>
+              <div className="jilla-suggestions">
                 {msg.suggestions.map((s, i) => (
-                  <button key={i} onClick={() => handleSuggestion(s)} disabled={loading}
-                    style={{ fontSize: 10.5, padding: "4px 10px", borderRadius: 20,
-                      background: "var(--gc-soft)", border: "1px solid var(--gc-border)",
-                      color: "var(--gc-primary)", cursor: "pointer", fontWeight: 500,
-                      transition: "all 0.15s", whiteSpace: "nowrap" }}
-                    onMouseEnter={e => { (e.target as HTMLElement).style.background = "var(--gc-primary)"; (e.target as HTMLElement).style.color = "#fff"; }}
-                    onMouseLeave={e => { (e.target as HTMLElement).style.background = "var(--gc-soft)"; (e.target as HTMLElement).style.color = "var(--gc-primary)"; }}>
+                  <button key={i} className="jilla-chip" onClick={() => handleSuggestion(s)}
+                    disabled={loading} style={{ animationDelay: `${i * 0.08 + 0.15}s` }}>
                     {s}
                   </button>
                 ))}
@@ -280,37 +200,30 @@ export default function JillaChat({ sim, myRole, scenarioId, onHighlightNode, on
           </div>
         ))}
 
-        {/* Loading indicator */}
+        {/* Typing indicator */}
         {loading && (
-          <div style={{ display: "flex", gap: 6, alignItems: "center", paddingLeft: 30 }}>
-            <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--gc-soft)",
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
-              {JILLA_AVATAR}
-            </div>
-            <div style={{ background: "var(--gc-soft)", borderRadius: 14, padding: "8px 14px" }}>
-              <span className="spinner" style={{ width: 12, height: 12 }} />
+          <div className="jilla-msg jilla-msg-jilla jilla-typing-row">
+            <div className="jilla-msg-avatar">J</div>
+            <div className="jilla-typing">
+              <span className="jilla-dot" style={{ animationDelay: "0s" }} />
+              <span className="jilla-dot" style={{ animationDelay: "0.15s" }} />
+              <span className="jilla-dot" style={{ animationDelay: "0.3s" }} />
             </div>
           </div>
         )}
       </div>
 
       {/* Input */}
-      <div style={{ padding: "8px 12px", borderTop: "1px solid var(--gc-border)", flexShrink: 0 }}>
-        <form onSubmit={e => { e.preventDefault(); sendMessage(input); }}
-          style={{ display: "flex", gap: 6 }}>
+      <div className={`jilla-input-wrap${inputFocused ? " focused" : ""}`}>
+        <form onSubmit={e => { e.preventDefault(); sendMessage(input); }} className="jilla-input-form">
           <input value={input} onChange={e => setInput(e.target.value)} disabled={loading}
             placeholder="Ask Jilla anything..."
-            style={{ flex: 1, padding: "8px 12px", borderRadius: 20, border: "1px solid var(--gc-border)",
-              fontSize: 12.5, background: "var(--gc-soft)", color: "var(--gc-text)", outline: "none" }}
-            onFocus={e => (e.target.style.borderColor = "var(--gc-primary)")}
-            onBlur={e => (e.target.style.borderColor = "var(--gc-border)")} />
+            className="jilla-input"
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)} />
           <button type="submit" disabled={loading || !input.trim()}
-            style={{ width: 34, height: 34, borderRadius: "50%", border: "none",
-              background: input.trim() ? "var(--gc-primary)" : "var(--gc-soft)",
-              color: input.trim() ? "#fff" : "var(--gc-muted)", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13,
-              transition: "all 0.15s" }}>
-            <i className="fa fa-paper-plane" />
+            className={`jilla-send${input.trim() ? " active" : ""}`}>
+            <i className="fa fa-arrow-up" />
           </button>
         </form>
       </div>

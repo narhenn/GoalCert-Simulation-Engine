@@ -1,8 +1,8 @@
 /**
- * TeachingCard — visual teaching content that replaces chat bubbles.
+ * TeachingCard — premium glassmorphism teaching cards.
  *
  * 4 variants: concept (explain), action (do this), result (what happened), flow (attack chain).
- * Supports mini diagrams, code blocks, step counters, and action buttons.
+ * Features: gradient glow border, frosted glass, spring animations, copy buttons.
  */
 
 interface TeachingCardProps {
@@ -21,11 +21,11 @@ interface TeachingCardProps {
   style?: React.CSSProperties;
 }
 
-const TYPE_STYLES: Record<string, { icon: string; accent: string; label: string }> = {
-  concept: { icon: "fa-lightbulb", accent: "var(--gc-primary)", label: "LEARN" },
-  action: { icon: "fa-hand-pointer", accent: "#ea580c", label: "YOUR TURN" },
-  result: { icon: "fa-chart-bar", accent: "#16a34a", label: "RESULT" },
-  flow: { icon: "fa-route", accent: "#0284c7", label: "ATTACK FLOW" },
+const TYPE_STYLES: Record<string, { icon: string; gradient: string; accent: string; label: string; glow: string }> = {
+  concept: { icon: "fa-lightbulb", gradient: "linear-gradient(135deg, #7c3aed, #4902A2)", accent: "var(--gc-primary)", label: "LEARN", glow: "rgba(73,2,162,0.3)" },
+  action: { icon: "fa-bolt", gradient: "linear-gradient(135deg, #f59e0b, #ea580c)", accent: "#ea580c", label: "YOUR TURN", glow: "rgba(234,88,12,0.3)" },
+  result: { icon: "fa-check-circle", gradient: "linear-gradient(135deg, #22c55e, #16a34a)", accent: "#16a34a", label: "RESULT", glow: "rgba(22,163,74,0.3)" },
+  flow: { icon: "fa-route", gradient: "linear-gradient(135deg, #3b82f6, #0284c7)", accent: "#0284c7", label: "ATTACK FLOW", glow: "rgba(2,132,199,0.3)" },
 };
 
 export default function TeachingCard({
@@ -35,96 +35,75 @@ export default function TeachingCard({
   const t = TYPE_STYLES[type] || TYPE_STYLES.concept;
 
   return (
-    <div style={{
-      width: 380, maxWidth: "90vw", background: "#fff", borderRadius: 16,
-      borderLeft: `4px solid ${t.accent}`, boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
-      overflow: "hidden", color: "var(--gc-text)", zIndex: 9500,
-      animation: "cardAppear 0.3s ease", ...style,
-    }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px",
-        borderBottom: "1px solid var(--gc-border)" }}>
-        <i className={`fa ${t.icon}`} style={{ color: t.accent, fontSize: 13 }} />
-        <span style={{ fontSize: 10, fontWeight: 700, color: t.accent, letterSpacing: 1 }}>{t.label}</span>
-        {step && (
-          <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--gc-muted)",
-            background: "var(--gc-soft)", padding: "2px 8px", borderRadius: 10 }}>
-            {step.current}/{step.total}
-          </span>
-        )}
-        {onDismiss && (
-          <button onClick={onDismiss} style={{ marginLeft: step ? 4 : "auto", background: "none",
-            border: "none", color: "var(--gc-muted)", cursor: "pointer", fontSize: 13, padding: 2 }}>
-            <i className="fa fa-times" />
-          </button>
-        )}
-      </div>
-
-      {/* Body */}
-      <div style={{ padding: "12px 14px" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, color: "var(--gc-text)" }}>{title}</div>
-
-        {diagram && <div style={{ margin: "10px 0" }}>{diagram}</div>}
-
-        <div style={{ fontSize: 12.5, color: "var(--gc-text2)", lineHeight: 1.7 }}>
-          {body.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
-            if (part.startsWith("**") && part.endsWith("**")) {
-              return <strong key={i} style={{ color: "var(--gc-text)" }}>{part.slice(2, -2)}</strong>;
-            }
-            if (part.startsWith("`") && part.endsWith("`")) {
-              return <code key={i} style={{ background: "var(--gc-soft)", padding: "1px 5px",
-                borderRadius: 4, fontFamily: "var(--mono)", fontSize: 11.5, color: t.accent }}>
-                {part.slice(1, -1)}
-              </code>;
-            }
-            return <span key={i}>{part}</span>;
-          })}
-        </div>
-
-        {code && (
-          <div style={{ margin: "10px 0", background: "#0b1220", borderRadius: 8, padding: "8px 12px",
-            fontFamily: "var(--mono)", fontSize: 11.5, color: "#34d399", userSelect: "text",
-            cursor: "text", position: "relative" }}>
-            <span style={{ color: "#ef4444" }}>$</span> {code}
-            <button onClick={() => navigator.clipboard.writeText(code)}
-              style={{ position: "absolute", top: 6, right: 6, background: "rgba(255,255,255,0.1)",
-                border: "none", color: "#94a3b8", cursor: "pointer", borderRadius: 4, padding: "2px 6px",
-                fontSize: 10 }}>
-              <i className="fa fa-copy" />
-            </button>
-          </div>
-        )}
-
-        {status && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11,
-            color: status === "done" ? "#16a34a" : status === "error" ? "#ef4444" : "var(--gc-muted)" }}>
-            {status === "waiting" && <span className="spinner" style={{ width: 10, height: 10 }} />}
-            {status === "done" && <i className="fa fa-check-circle" />}
-            {status === "error" && <i className="fa fa-times-circle" />}
-            {statusText || (status === "waiting" ? "Waiting for you..." : status === "done" ? "Done!" : "Error")}
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      {(onNext || onDeepen) && (
-        <div style={{ display: "flex", gap: 6, padding: "8px 14px",
-          borderTop: "1px solid var(--gc-border)", justifyContent: "flex-end" }}>
-          {onDeepen && (
-            <button onClick={onDeepen} style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8,
-              background: "var(--gc-soft)", border: "1px solid var(--gc-border)",
-              color: "var(--gc-primary)", cursor: "pointer", fontWeight: 500 }}>
-              {deepenLabel || "Tell me more"}
-            </button>
+    <div className="tc-outer" style={{ "--tc-glow": t.glow, "--tc-accent": t.accent, ...style } as React.CSSProperties}>
+      <div className="tc-card">
+        {/* Gradient header strip */}
+        <div className="tc-header" style={{ background: t.gradient }}>
+          <i className={`fa ${t.icon}`} style={{ fontSize: 12 }} />
+          <span className="tc-label">{t.label}</span>
+          {step && (
+            <span className="tc-step">{step.current}/{step.total}</span>
           )}
-          {onNext && (
-            <button onClick={onNext} style={{ fontSize: 11, padding: "5px 14px", borderRadius: 8,
-              background: t.accent, border: "none", color: "#fff", cursor: "pointer", fontWeight: 600 }}>
-              Next →
+          {onDismiss && (
+            <button onClick={onDismiss} className="tc-close">
+              <i className="fa fa-times" />
             </button>
           )}
         </div>
-      )}
+
+        {/* Body */}
+        <div className="tc-body">
+          <div className="tc-title">{title}</div>
+
+          {diagram && <div style={{ margin: "10px 0" }}>{diagram}</div>}
+
+          <div className="tc-text">
+            {body.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
+              if (part.startsWith("**") && part.endsWith("**"))
+                return <strong key={i} style={{ color: "var(--gc-text)" }}>{part.slice(2, -2)}</strong>;
+              if (part.startsWith("`") && part.endsWith("`"))
+                return <code key={i} className="tc-inline-code" style={{ color: t.accent }}>{part.slice(1, -1)}</code>;
+              return <span key={i}>{part}</span>;
+            })}
+          </div>
+
+          {code && (
+            <div className="tc-code-block">
+              <span style={{ color: "#ef4444" }}>$</span> {code}
+              <button onClick={() => navigator.clipboard.writeText(code)} className="tc-copy">
+                <i className="fa fa-copy" />
+              </button>
+            </div>
+          )}
+
+          {status && (
+            <div className="tc-status" style={{
+              color: status === "done" ? "#16a34a" : status === "error" ? "#ef4444" : "var(--gc-muted)",
+            }}>
+              {status === "waiting" && <span className="jilla-dot" style={{ width: 6, height: 6 }} />}
+              {status === "done" && <i className="fa fa-check-circle" />}
+              {status === "error" && <i className="fa fa-times-circle" />}
+              {statusText || (status === "waiting" ? "Waiting for you..." : status === "done" ? "Done!" : "Error")}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {(onNext || onDeepen) && (
+          <div className="tc-footer">
+            {onDeepen && (
+              <button onClick={onDeepen} className="tc-btn tc-btn-secondary">
+                {deepenLabel || "Tell me more"}
+              </button>
+            )}
+            {onNext && (
+              <button onClick={onNext} className="tc-btn tc-btn-primary" style={{ background: t.gradient }}>
+                Next <i className="fa fa-arrow-right" style={{ fontSize: 10 }} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -158,18 +137,14 @@ export function AttackFlowDiagram({ steps }: { steps: { icon: string; label: str
       {steps.map((s, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--gc-soft)",
-              border: "2px solid var(--gc-primary)", display: "flex", alignItems: "center",
-              justifyContent: "center", fontSize: 14, color: "var(--gc-primary)",
-              animation: `cardAppear 0.4s ease ${i * 0.2}s both` }}>
+            <div className="tc-flow-node" style={{ animationDelay: `${i * 0.12}s` }}>
               <i className={`fa ${s.icon}`} />
             </div>
             <span style={{ fontSize: 8, color: "var(--gc-text)", fontWeight: 600 }}>{s.label}</span>
             <span style={{ fontSize: 7, color: "var(--gc-muted)" }}>{s.sublabel}</span>
           </div>
           {i < steps.length - 1 && (
-            <div style={{ width: 20, height: 2, background: "var(--gc-primary)", opacity: 0.4,
-              animation: `cardAppear 0.3s ease ${i * 0.2 + 0.1}s both` }} />
+            <div className="tc-flow-arrow" style={{ animationDelay: `${i * 0.12 + 0.06}s` }} />
           )}
         </div>
       ))}
