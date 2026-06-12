@@ -23,10 +23,12 @@ class LabTarget:
     role: str = "host"            # "web" | "fileserver" | "dc" | "workstation" | ...
     services: tuple[str, ...] = ()  # ("http", "smb", "ssh", ...)
     container: str = ""           # backend-specific handle (container name) for log/detection access
+    scenario: str = ""            # the guided scenario this target is the "goal" web app for (if any)
+    http_port: int = 0            # the in-container http port to map to a browsable URL (0 = none)
 
     def public(self) -> dict:
         return {"id": self.id, "name": self.name, "host": self.host, "os": self.os,
-                "role": self.role, "services": list(self.services)}
+                "role": self.role, "services": list(self.services), "scenario": self.scenario}
 
 
 @dataclass
@@ -60,13 +62,14 @@ class LabStatus:
     containers: list[dict] = field(default_factory=list)
     detail: str = ""
     terminal_url: str = ""        # browser shell into the attacker box, if the backend offers one
+    target_urls: dict[str, str] = field(default_factory=dict)  # target id -> browsable http URL (if up)
 
     def public(self) -> dict:
         return {"backend": self.backend, "available": self.available, "up": self.up,
                 "attacker_ready": self.attacker_ready,
                 "targets": [t.public() for t in self.targets],
                 "containers": self.containers, "detail": self.detail,
-                "terminal_url": self.terminal_url}
+                "terminal_url": self.terminal_url, "target_urls": self.target_urls}
 
 
 # --------------------------------------------------------------------------- #

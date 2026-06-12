@@ -41,31 +41,39 @@ DETECT_LATENCY: dict[str, tuple[int, int]] = {
     "critical": (2, 5), "high": (4, 8), "medium": (7, 13), "low": (12, 20), "info": (15, 24),
 }
 ACTION_LATENCY: dict[str, tuple[int, int]] = {
-    # SOC — querying is quicker, hunting is slow
-    "triage": (3, 6), "escalate": (2, 5), "hunt": (6, 10), "view": (3, 5),
-    # Blue — containment quick-ish, eradication slower, recovery slowest (locating clean data)
-    "isolate": (5, 8), "segment": (5, 8), "sinkhole": (5, 8), "block_c2": (5, 8), "block_egress": (5, 8),
-    "patch_all": (6, 10), "patch_hosts": (5, 9), "reset_creds": (6, 10), "disable_cred": (5, 9),
-    "protect_backup": (4, 7), "alt_detect": (5, 8), "declare_ir": (3, 5), "restore": (7, 11),
+    # Balanced so no team feels disproportionately slow (auto seats share Red's ~initiative band).
+    # SOC
+    "triage": (3, 5), "escalate": (3, 5), "hunt": (4, 6), "view": (3, 5),
+    # Blue
+    "isolate": (3, 5), "segment": (3, 5), "sinkhole": (3, 5), "block_c2": (3, 5), "block_egress": (3, 5),
+    "patch_all": (4, 6), "patch_hosts": (3, 5), "reset_creds": (4, 6), "disable_cred": (3, 5),
+    "protect_backup": (3, 5), "alt_detect": (3, 5), "declare_ir": (3, 5), "restore": (4, 6),
 }
-RED_ACTION_LATENCY = (2, 4)     # attacker has the initiative — fastest, but not perfectly metronomic
+RED_ACTION_LATENCY = (3, 5)     # attacker has the initiative, but auto seats now move at a similar pace
 
-# How long a *human-typed* tool takes to actually run (ticks ≈ 3s each), by effect. This is what lets
-# the learner take their time: you type the command, it runs for a while (nmap/netexec are slow, a
-# 200GB exfil is very slow), and only when it *completes* does its effect land and its telemetry fire —
-# so detection genuinely starts after Red's command finishes, not the instant it's clicked.
+# How long a *human-typed* tool takes to actually run (ticks ≈ 3s each), by effect. This lets the
+# learner take their time: you type the command, it runs for a few seconds, and only when it
+# *completes* does its effect land and its telemetry fire — so detection starts after the command
+# finishes, not the instant it's clicked.
+#
+# TIMING IS DELIBERATELY EQUALISED ACROSS TEAMS (≈12–18s) so Red is no longer the odd one out (it
+# used to take ~30s while SOC took ~9s). Every command sits in one tight band; only a handful of
+# genuinely heavy jobs (bulk exfiltration, fleet-wide encryption/restore) run a little longer.
+_FAST = (3, 5)      # ~9–15s  — quick queries / single-host moves
+_STD = (4, 6)       # ~12–18s — the common band most tools use
+_HEAVY = (5, 7)     # ~15–21s — bulk / fleet-wide / data-heavy jobs
 EXEC_LATENCY: dict[str, tuple[int, int]] = {
-    # Red — recon and big jobs are slow; precise actions a touch quicker (all in a balanced 4–13 band)
-    "reveal_hosts": (6, 10), "mark_vulnerable": (6, 10), "spray": (8, 12), "deliver_phish": (5, 8),
-    "exploit": (5, 8), "infect": (5, 8), "c2_establish": (5, 8), "cred_dump": (6, 9),
-    "persist": (5, 8), "killswitch_check": (4, 7), "start_propagation": (6, 9), "cred_propagation": (6, 9),
-    "exfiltrate": (9, 13), "disable_recovery": (6, 9), "encrypt": (7, 10),
-    # Blue — containment quick-ish, eradication/recovery slower (locating hosts / clean data)
-    "isolate": (5, 8), "segment": (5, 8), "sinkhole": (5, 8), "block_c2": (5, 8), "block_egress": (5, 8),
-    "patch_all": (6, 9), "patch_hosts": (5, 8), "reset_creds": (6, 9), "disable_cred": (5, 8),
-    "protect_backup": (5, 7), "alt_detect": (5, 8), "declare_ir": (4, 6), "restore": (7, 11),
-    # SOC — queries return fairly quickly; a hunt takes longer
-    "view": (3, 5), "triage": (4, 6), "escalate": (3, 5), "hunt": (6, 9),
+    # Red — same band as the defenders now; only bulk exfil / encryption are "heavy"
+    "reveal_hosts": _STD, "mark_vulnerable": _STD, "spray": _STD, "deliver_phish": _STD,
+    "exploit": _STD, "infect": _STD, "c2_establish": _STD, "cred_dump": _STD,
+    "persist": _STD, "killswitch_check": _FAST, "start_propagation": _STD, "cred_propagation": _STD,
+    "exfiltrate": _HEAVY, "disable_recovery": _STD, "encrypt": _HEAVY,
+    # Blue — containment/eradication in the common band; fleet-wide recovery is heavy
+    "isolate": _STD, "segment": _STD, "sinkhole": _STD, "block_c2": _STD, "block_egress": _STD,
+    "patch_all": _STD, "patch_hosts": _STD, "reset_creds": _STD, "disable_cred": _STD,
+    "protect_backup": _STD, "alt_detect": _STD, "declare_ir": _FAST, "restore": _HEAVY,
+    # SOC — queries are quick; a hunt sits in the common band
+    "view": _FAST, "triage": _FAST, "escalate": _FAST, "hunt": _STD,
 }
 
 # Per-scenario narration for the *dynamic* spread tick (the only narration the engine still owns —
@@ -244,8 +252,12 @@ class ScenarioSim:
         if self.finished:
             return False, "scenario complete"
         tool = self.tools.get(tool_id)
-        if tool is None or tool.team != team:
-            return False, "unknown tool for this team"
+        if tool is None:
+            return False, "unknown tool"
+        # ONE common console for every team: the tool's own team is authoritative, so whichever seat
+        # the operator is driving they can run any command (no "unknown tool for this team" lockout —
+        # this is what lets you keep working any role's tools after the attack, in recovery/review).
+        team = tool.team
         ok, reason = self._available(tool)
         if not ok:
             return False, reason
@@ -294,8 +306,9 @@ class ScenarioSim:
         if self.finished:
             return False, "scenario complete"
         tool = self.tools.get(tool_id)
-        if tool is None or tool.team != team:
-            return False, "unknown tool for this team"
+        if tool is None:
+            return False, "unknown tool"
+        team = tool.team   # common console: the tool's team is authoritative (see run_tool)
         if any(f["team"] == team for f in self.inflight):
             return False, "a tool is already running — let it finish first"
         ok, reason = self._available(tool)

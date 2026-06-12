@@ -14,30 +14,30 @@ const FILTERS = [
 const EDU_SCENARIOS = [
   {
     id: "scn-wannacry-w1", name: "Operation Tripwire",
-    subtitle: "WannaCry Ransomware Worm",
-    description: "A ransomware worm sweeps through a 250-host hospital network. Red drives the worm, Blue contains and patches, SOC detects and escalates — all teams functional, real interplay.",
+    subtitle: "Breach the Hospital Patient Portal",
+    description: "Attack a custom hospital patient portal from a real Kali shell: fingerprint it, pull a leaked DB backup, and SQL-inject the login to reach protected patient records and capture the flag.",
     icon: "fa-virus", color: "#C8413E", gradient: "linear-gradient(135deg, #C8413E, #E07A3E)",
-    stages: 9, duration: 35, mitre: ["T1046", "T1210", "T1486", "T1490", "T1021.002"],
+    stages: 4, duration: 20, mitre: ["T1046", "T1190", "T1213", "T1078"],
     difficulty: ["Standard", "Pressure"],
-    setting: "Mercy Regional Health Network", role: "Red · Blue · SOC",
+    setting: "Mercy Regional Health · SQL injection", role: "Solo · Kali terminal",
   },
   {
     id: "scn-r5-phishing", name: "R5 — Phishing to Encrypt",
-    subtitle: "Human-Operated Ransomware",
-    description: "A targeted phishing email leads to macro execution, credential theft, lateral movement, and enterprise-wide ransomware. Red attacks, Blue defends, SOC monitors — all live.",
-    icon: "fa-envelope-open-text", color: "#E07A3E", gradient: "linear-gradient(135deg, #E07A3E, #C8413E)",
-    stages: 9, duration: 45, mitre: ["T1566.001", "T1204.002", "T1053.005", "T1003.001", "T1486"],
+    subtitle: "Mailbox → Remote Code Execution",
+    description: "From a real Kali shell, brute a weak webmail mailbox, log in, then abuse the diagnostics tool's command injection to land code execution and read the flag — the ransomware crew's foothold.",
+    icon: "fa-envelope-open-text", color: "#7c3aed", gradient: "linear-gradient(135deg, #7c3aed, #C8413E)",
+    stages: 4, duration: 25, mitre: ["T1110", "T1078", "T1059", "T1203"],
     difficulty: ["Standard", "Pressure"],
-    setting: "MediumCorp Financial Services", role: "Red · Blue · SOC",
+    setting: "MediumCorp SecureMail · cmd injection", role: "Solo · Kali terminal",
   },
   {
     id: "scn-c5-edr", name: "C5 — EDR Outage Exploitation",
-    subtitle: "Attacking During Blindness",
-    description: "Your EDR vendor pushes a bad update and endpoint visibility goes dark. An attacker piggybacks — password spray, lateral movement, double extortion. Defend with compensating controls.",
-    icon: "fa-eye-slash", color: "#5B7FB0", gradient: "linear-gradient(135deg, #5B7FB0, #c084fc)",
-    stages: 9, duration: 50, mitre: ["T1110.003", "T1133", "T1003.001", "T1048.003", "T1486"],
+    subtitle: "Attack While the Agent is Blind",
+    description: "The EDR is offline and the IT admin console is wide open. Password-spray the admins from a real Kali shell, log in, and use the remote runbook to execute commands and read the flag.",
+    icon: "fa-eye-slash", color: "#0284c7", gradient: "linear-gradient(135deg, #5B7FB0, #c084fc)",
+    stages: 4, duration: 25, mitre: ["T1110.003", "T1078", "T1059", "T1569"],
     difficulty: ["Standard", "Pressure"],
-    setting: "GlobalTech Corp — 500 hosts", role: "Red · Blue · SOC",
+    setting: "GlobalTech Admin Console · spray + RCE", role: "Solo · Kali terminal",
   },
 ];
 
@@ -52,7 +52,7 @@ export default function Library() {
     <>
       <div className="section-header">
         <h1>Scenario Library</h1>
-        <p>Practice arena — full scenarios with <b>all teams functional</b>. Pick a role; the others play live against you.</p>
+        <p>Hands-on hack labs — drive a <b>real Kali terminal</b> against a custom vulnerable app built for each mission. Follow the objectives, capture the flag.</p>
       </div>
 
       <div className="scenario-filters">
@@ -67,8 +67,8 @@ export default function Library() {
       {(filter === "all" || filter === "edu") && (
         <>
           <div style={{ marginTop: 24, marginBottom: 12 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700 }}><i className="fa fa-dumbbell" style={{ marginRight: 8, color: "var(--gc-orange)" }} />Practice Arena — All Teams Live</h2>
-            <p style={{ fontSize: 12.5, color: "var(--gc-muted)" }}>Pick a role and play it against the others for real. Same mission goals and per-phase guidance as the live teaching scenarios — but here the opposing teams actually respond.</p>
+            <h2 style={{ fontSize: 16, fontWeight: 700 }}><i className="fa fa-terminal" style={{ marginRight: 8, color: "var(--gc-orange)" }} />Hack Lab — Real Kali Terminal</h2>
+            <p style={{ fontSize: 12.5, color: "var(--gc-muted)" }}>Each scenario ships with a custom, intentionally vulnerable web app on the live range. The inline Kali shell is yours — recon, exploit, and capture the flag, guided by per-phase objectives and suggested commands.</p>
           </div>
           <div className="scenario-grid">
             {EDU_SCENARIOS.map((s) => (
@@ -76,7 +76,7 @@ export default function Library() {
                 onClick={() => nav(`/play/${s.id}?mode=practice`)}>
                 <span style={{ position: "absolute", top: 14, right: 14, fontSize: 9, fontWeight: 700, letterSpacing: .5,
                   padding: "3px 8px", borderRadius: 20, background: "rgba(234,88,12,.12)", color: "var(--gc-orange)" }}>
-                  <i className="fa fa-dumbbell" /> PRACTICE
+                  <i className="fa fa-terminal" /> HACK LAB
                 </span>
                 <div style={{ width: 46, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: s.gradient, marginBottom: 12 }}>
                   <i className={`fa ${s.icon}`} style={{ color: "#fff", fontSize: 19 }} />
@@ -93,7 +93,7 @@ export default function Library() {
                   <div className="meta-item"><i className="fa fa-shield-halved" /> {s.mitre.length} techniques</div>
                 </div>
                 <button className="btn btn-primary" style={{ marginTop: 12, width: "100%", justifyContent: "center" }}>
-                  <i className="fa fa-play" /> Enter practice
+                  <i className="fa fa-terminal" /> Enter hack lab
                 </button>
               </div>
             ))}

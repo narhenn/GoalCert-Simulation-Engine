@@ -50,6 +50,36 @@ services:
       - range
     restart: unless-stopped
 
+  # --- Per-scenario CUSTOM vulnerable web apps (the "goal" of each Library hack-lab mission) ---
+  # Each is a small, themed, intentionally vulnerable Flask app reachable from the Kali box by name
+  # (target-w1 / target-r5 / target-c5) and browsable via its random host port ("View app").
+  target-w1:
+    build: { context: ./targets/w1 }
+    image: goalcert/target-w1:latest
+    ports:
+      - "80"            # Mercy Health Patient Portal (SQL injection) -> random host port
+    networks:
+      - range
+    restart: unless-stopped
+
+  target-r5:
+    build: { context: ./targets/r5 }
+    image: goalcert/target-r5:latest
+    ports:
+      - "80"            # MediumCorp SecureMail (brute + command injection) -> random host port
+    networks:
+      - range
+    restart: unless-stopped
+
+  target-c5:
+    build: { context: ./targets/c5 }
+    image: goalcert/target-c5:latest
+    ports:
+      - "80"            # GlobalTech Admin Console (password spray + RCE) -> random host port
+    networks:
+      - range
+    restart: unless-stopped
+
 networks:
   range:
     driver: bridge

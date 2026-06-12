@@ -19,8 +19,9 @@ if ! docker version --format '{{.Server.Version}}' >/dev/null 2>&1; then
 fi
 echo "  Docker OK"
 
-step 2 "Building the Kali attacker image (first build pulls ~1GB, then it's cached)..."
-if [ "${1:-}" = "--rebuild" ]; then $DC build --no-cache attacker; else $DC build attacker; fi
+step 2 "Building the Kali attacker + custom scenario target images (first build pulls ~1GB, then cached)..."
+if [ "${1:-}" = "--rebuild" ]; then $DC build --no-cache attacker target-w1 target-r5 target-c5;
+else $DC build attacker target-w1 target-r5 target-c5; fi
 
 step 3 "Pulling target images (DVWA web + Samba file server)..."
 $DC pull target-web target-files
@@ -38,8 +39,14 @@ $DC exec -T attacker sh -lc "nmap -sV -Pn -T4 target-web | tail -n 15"
 
 DVWA="$($DC port target-web 80 | sed 's/0.0.0.0/localhost/')"
 TERM_URL="$($DC port attacker 7681 | sed 's/0.0.0.0/localhost/')"
+W1="$($DC port target-w1 80 | sed 's/0.0.0.0/localhost/')"
+R5="$($DC port target-r5 80 | sed 's/0.0.0.0/localhost/')"
+C5="$($DC port target-c5 80 | sed 's/0.0.0.0/localhost/')"
 printf "\n\033[32mRange is up.\033[0m\n"
 echo "  DVWA in a browser:  http://$DVWA  (admin / password, then 'Create / Reset Database')"
 echo "  Kali shell (ttyd):  http://$TERM_URL"
+echo "  W1 Patient Portal:  http://$W1   (hack-lab goal: SQLi auth bypass)"
+echo "  R5 SecureMail:      http://$R5   (hack-lab goal: brute + command injection)"
+echo "  C5 Admin Console:   http://$C5   (hack-lab goal: password spray + RCE)"
 echo "  Stop it later:      docker compose -f infrastructure/docker-compose.lab.yml -p gclab down"
-echo "  In GoalCert:        start a live mission, then toggle 'Live-fire' (host) and play Red."
+echo "  In GoalCert:        Scenario Library -> a scenario -> the inline Kali shell hacks these apps."

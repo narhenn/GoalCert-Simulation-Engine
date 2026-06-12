@@ -190,11 +190,12 @@ export interface LiveEvent {
   severity: string; asset_id: string | null; asset_label: string | null; data: Record<string, any>;
 }
 // ---- Live-fire lab (real VMs + real tools) ----
-export interface LabTarget { id: string; name: string; host: string; os: string; role: string; services: string[] }
+export interface LabTarget { id: string; name: string; host: string; os: string; role: string; services: string[]; scenario?: string }
 export interface LabStatus {
   backend: string; available: boolean; up: boolean; attacker_ready: boolean;
   targets: LabTarget[]; containers: { name: string; running: boolean }[]; detail: string;
   terminal_url: string;
+  target_urls?: Record<string, string>;   // target id -> browsable http URL (when the range is up)
 }
 export interface LabTool {
   id: string; name: string; function: string; team: string; status: string;

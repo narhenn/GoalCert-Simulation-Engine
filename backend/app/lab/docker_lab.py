@@ -21,11 +21,23 @@ ATTACKER_SERVICE = "attacker"
 TTYD_PORT = 7681
 
 # Fixed topology of the range (service names == DNS names within the compose network).
+#  - target-web / target-files: the generic DVWA + Samba boxes (live-fire demo).
+#  - target-w1 / target-r5 / target-c5: the per-scenario CUSTOM vulnerable web apps that are the
+#    "goal" of each Library hack-lab mission (hospital portal / corporate webmail / admin console).
 LAB_TARGETS: list[LabTarget] = [
     LabTarget(id="target-web", name="DVWA Web Server", host="target-web", os="linux", role="web",
-              services=("http",), container="target-web"),
+              services=("http",), container="target-web", http_port=80),
     LabTarget(id="target-files", name="File Server (SMB)", host="target-files", os="linux",
               role="fileserver", services=("smb",), container="target-files"),
+    LabTarget(id="target-w1", name="Mercy Health Patient Portal", host="target-w1", os="linux",
+              role="web", services=("http",), container="target-w1",
+              scenario="scn-wannacry-w1", http_port=80),
+    LabTarget(id="target-r5", name="MediumCorp Webmail", host="target-r5", os="linux",
+              role="web", services=("http",), container="target-r5",
+              scenario="scn-r5-phishing", http_port=80),
+    LabTarget(id="target-c5", name="GlobalTech IT Admin Console", host="target-c5", os="linux",
+              role="web", services=("http",), container="target-c5",
+              scenario="scn-c5-edr", http_port=80),
 ]
 
 
@@ -97,10 +109,17 @@ class DockerComposeLab(LabBackend):
         up = ATTACKER_SERVICE in running
         attacker_ready = False
         terminal_url = ""
+        target_urls: dict[str, str] = {}
         if up:
             chk = self.run_in_attacker("command -v nmap >/dev/null && echo ok", timeout=15)
             attacker_ready = "ok" in chk.stdout
             terminal_url = self.attacker_terminal_url()
+            # browsable "View app" URL for every running http target (the per-scenario DVWAs)
+            for t in LAB_TARGETS:
+                if t.http_port and t.id in running:
+                    url = self._host_port(t.id, t.http_port)
+                    if url:
+                        target_urls[t.id] = url
         containers = [{"name": s, "running": s in running}
                       for s in [ATTACKER_SERVICE, *[t.id for t in LAB_TARGETS]]]
         detail = (f"Range '{self.project}' up." if up else
@@ -108,7 +127,7 @@ class DockerComposeLab(LabBackend):
                   f"docker compose -f infrastructure/docker-compose.lab.yml -p {self.project} up -d")
         return LabStatus(backend=self.name, available=True, up=up, attacker_ready=attacker_ready,
                          targets=list(LAB_TARGETS), containers=containers, detail=detail,
-                         terminal_url=terminal_url)
+                         terminal_url=terminal_url, target_urls=target_urls)
 
     def up(self) -> CommandResult:
         if not self._docker_available():

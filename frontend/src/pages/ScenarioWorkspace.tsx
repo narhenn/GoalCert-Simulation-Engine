@@ -9,6 +9,7 @@ import VictimDesktop from "../components/sim/VictimDesktop";
 import AarReport from "../components/AarReport";
 import GuidePanel from "../components/sim/GuidePanel";
 import ResultOverlayModal from "../components/sim/ResultOverlay";
+import NotificationDock, { NotifyMsg } from "../components/sim/NotificationDock";
 import { TEAM_META } from "../components/sim/shared";
 import { getPhase } from "../components/sim/StoryData";
 import "../components/sim/sim.css";
@@ -103,6 +104,15 @@ export default function ScenarioWorkspace() {
   const canPlay = (t: string) => recoveryMode || t === myRole;
   const events = sim.events || [];
   const termUrl = lab?.terminal_url;
+
+  // Floating notification feed: the noteworthy events (phase changes, alerts, actions, results).
+  const notifyMsgs: NotifyMsg[] = (events as any[])
+    .filter((e) => e.notify || ["g_phase", "g_result", "alert", "g_intent"].includes(e.kind))
+    .map((e) => ({ id: e.seq, title: e.title, text: e.message, severity: e.severity, t: e.t, role: e.role }));
+  const dockStatus = {
+    label: sim.guide?.phase ? `Phase: ${sim.guide.phase}` : (meta?.name ?? "Operation Tripwire"),
+    detail: sim.finished ? `Concluded — ${sim.outcome}` : `Threat trending: ${sim.worm?.outcome_band}`,
+  };
 
   return (
     <div className="ws-root">
@@ -206,6 +216,8 @@ export default function ScenarioWorkspace() {
       )}
 
       {sim.finished && !resultClosed && <FinishOverlay sim={sim} report={snap.report} onQuit={quit} onClose={() => setResultClosed(true)} />}
+
+      <NotificationDock messages={notifyMsgs} status={dockStatus} />
     </div>
   );
 }

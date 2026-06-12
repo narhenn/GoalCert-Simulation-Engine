@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Catalog from "./pages/Catalog";
@@ -13,6 +13,7 @@ import LiveRoom from "./pages/LiveRoom";
 import Tripwire from "./pages/Tripwire";
 import GuidedRoom from "./pages/GuidedRoom";
 import ScenarioWorkspace from "./pages/ScenarioWorkspace";
+import HackLab from "./pages/HackLab";
 import Login from "./pages/Login";
 import { useAuth } from "./hooks/useAuth";
 
@@ -20,6 +21,9 @@ import { useAuth } from "./hooks/useAuth";
 const IMMERSIVE = new Set(["scn-wannacry-w1", "scn-r5-phishing", "scn-c5-edr"]);
 function Play() {
   const { scenarioId = "" } = useParams();
+  const [sp] = useSearchParams();
+  // Library (practice) = the terminal-focused real-hack lab; Live (teach) = the immersive workspace.
+  if (sp.get("mode") === "practice" && IMMERSIVE.has(scenarioId)) return <HackLab />;
   return IMMERSIVE.has(scenarioId) ? <ScenarioWorkspace /> : <GuidedRoom />;
 }
 
