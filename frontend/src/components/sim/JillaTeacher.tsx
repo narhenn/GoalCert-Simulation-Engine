@@ -8,10 +8,7 @@
  * - Chat popup that slides up from FAB with spring animation
  * - Proactive Socratic teaching at phase transitions
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import JillaSpotlight from "./JillaSpotlight";
-import TeachingCard from "./TeachingCard";
-import { TEAM_META } from "./shared";
+import { useCallback, useRef, useState, useEffect } from "react";
 
 interface Props {
   sim: any;
@@ -19,16 +16,7 @@ interface Props {
   scenarioId: string;
 }
 
-interface FloatingCard {
-  id: number;
-  type: "concept" | "action" | "result" | "flow";
-  title: string;
-  body: string;
-  code?: string;
-  diagram?: React.ReactNode;
-  position: { top: number; right: number };
-}
-
+// Phase teaching content — used by chat endpoint, kept here for reference
 const PHASE_TEACHINGS: Record<string, { title: string; body: string; type: "concept" | "action" | "result" }> = {
   "Host Discovery": {
     type: "concept",
@@ -78,52 +66,17 @@ const PHASE_TEACHINGS: Record<string, { title: string; body: string; type: "conc
 };
 
 export default function JillaTeacher({ sim, myRole, scenarioId }: Props) {
-  const [floatingCard, setFloatingCard] = useState<FloatingCard | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatResponse, setChatResponse] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
-  const [spotlightActive, setSpotlightActive] = useState(false);
-  const [spotlightStep, setSpotlightStep] = useState(0);
   const lastPhaseRef = useRef("");
-  const seqRef = useRef(0);
 
-  // Show teaching card on phase transition
+  // Track phase for chat context (but don't auto-pop cards — too cluttered)
   useEffect(() => {
     const phase = sim?.guide?.phase;
-    if (!phase || phase === lastPhaseRef.current) return;
-    lastPhaseRef.current = phase;
-    const teaching = PHASE_TEACHINGS[phase];
-    if (teaching) {
-      seqRef.current++;
-      setFloatingCard({
-        id: seqRef.current,
-        type: teaching.type,
-        title: teaching.title,
-        body: teaching.body,
-        position: { top: 80, right: 20 },
-      });
-      const timer = setTimeout(() => setFloatingCard(prev => prev?.id === seqRef.current ? null : prev), 15000);
-      return () => clearTimeout(timer);
-    }
+    if (phase) lastPhaseRef.current = phase;
   }, [sim?.guide?.phase]);
-
-  // Show result card after tool execution
-  useEffect(() => {
-    const events = sim?.events || [];
-    const last = events[events.length - 1];
-    if (!last || !last.notify || !last.data?.consequence) return;
-    seqRef.current++;
-    const id = seqRef.current;
-    setFloatingCard({
-      id, type: "result",
-      title: `${last.title}`,
-      body: last.data.consequence + (last.data.teaching_note ? `\n\n**Learn:** ${last.data.teaching_note}` : ""),
-      code: last.data.command || undefined,
-      position: { top: 80, right: 20 },
-    });
-    setTimeout(() => setFloatingCard(prev => prev?.id === id ? null : prev), 12000);
-  }, [sim?.events?.length]);
 
   // Chat
   const sendChat = useCallback(async (msg: string) => {
@@ -144,16 +97,6 @@ export default function JillaTeacher({ sim, myRole, scenarioId }: Props) {
     }
   }, [chatLoading, myRole, scenarioId, sim]);
 
-  // Spotlight
-  const spotlightSteps = [
-    { target: ".topo", type: "concept" as const, title: "This is your network",
-      body: "Each node is a host. Colors show their security state:\n\ud83d\udfe2 Healthy  \ud83d\udfe1 Vulnerable  \ud83d\udfe0 Exploited  \ud83d\udd34 Infected  \u2b1b Impacted  \ud83d\udd35 Contained" },
-    { target: ".ws-card:has(h3)", type: "action" as const, title: "Your tools are here",
-      body: "Click a tool to read its briefing and stage its command. Tools unlock as you progress through the kill chain." },
-    { target: ".term", type: "concept" as const, title: "The terminal",
-      body: "This is a real Kali terminal. Stage a tool above, then type its command here to execute it. Everything you run is real." },
-  ];
-
   // Render markdown in popup
   const renderMd = (text: string) =>
     text.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
@@ -165,41 +108,7 @@ export default function JillaTeacher({ sim, myRole, scenarioId }: Props) {
 
   return (
     <>
-      {/* Floating teaching card */}
-      {floatingCard && (
-        <div style={{ position: "fixed", top: floatingCard.position.top, right: floatingCard.position.right, zIndex: 9200 }}>
-          <TeachingCard
-            type={floatingCard.type}
-            title={floatingCard.title}
-            body={floatingCard.body}
-            code={floatingCard.code}
-            diagram={floatingCard.diagram}
-            onDismiss={() => setFloatingCard(null)}
-            onDeepen={() => {
-              setChatOpen(true);
-              sendChat(`Tell me more about ${floatingCard.title}`);
-              setFloatingCard(null);
-            }}
-            deepenLabel="Go deeper"
-          />
-        </div>
-      )}
-
-      {/* Spotlight overlay */}
-      {spotlightActive && (
-        <JillaSpotlight
-          steps={spotlightSteps}
-          currentStep={spotlightStep}
-          total={spotlightSteps.length}
-          onNext={() => {
-            if (spotlightStep < spotlightSteps.length - 1) setSpotlightStep(prev => prev + 1);
-            else { setSpotlightActive(false); setSpotlightStep(0); }
-          }}
-          onDismiss={() => { setSpotlightActive(false); setSpotlightStep(0); }}
-        />
-      )}
-
-      {/* Chat popup */}
+      {/* Chat popup — slides up from FAB */}
       {chatOpen && (
         <div style={{ position: "fixed", bottom: 82, right: 20, zIndex: 9100 }}>
           <div className="jilla-popup">
@@ -251,23 +160,12 @@ export default function JillaTeacher({ sim, myRole, scenarioId }: Props) {
         </div>
       )}
 
-      {/* FAB area */}
-      <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 9000,
-        display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
-
-        {/* Tour button */}
-        {!spotlightActive && sim?.guide?.progress?.done === 0 && (
-          <button className="jilla-tour-btn" onClick={() => setSpotlightActive(true)}>
-            <i className="fa fa-map" /> Take the tour
-          </button>
-        )}
-
-        {/* FAB */}
-        <button className={`jilla-fab${chatOpen ? " open" : ""}`}
-          onClick={() => setChatOpen(prev => !prev)}>
-          {chatOpen ? <i className="fa fa-times" style={{ fontSize: 18 }} /> : "J"}
-        </button>
-      </div>
+      {/* FAB — small circle, bottom-right */}
+      <button className={`jilla-fab${chatOpen ? " open" : ""}`}
+        style={{ position: "fixed", bottom: 20, right: 20, zIndex: 9000 }}
+        onClick={() => setChatOpen(prev => !prev)}>
+        {chatOpen ? <i className="fa fa-times" style={{ fontSize: 16 }} /> : "J"}
+      </button>
     </>
   );
 }

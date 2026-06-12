@@ -414,9 +414,9 @@
 
 /* ---- JillaTeacher FAB ---- */
 .jilla-fab {
-  width: 56px; height: 56px; border-radius: 50%; border: none;
+  width: 46px; height: 46px; border-radius: 50%; border: none;
   background: linear-gradient(135deg, #4902A2 0%, #7c3aed 100%);
-  color: #fff; cursor: pointer; font-size: 24px; font-weight: 800;
+  color: #fff; cursor: pointer; font-size: 18px; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   animation: fabFloat 4s ease infinite;
@@ -439,7 +439,7 @@
 
 /* Chat popup from FAB */
 .jilla-popup {
-  width: 380px; max-width: calc(100vw - 40px);
+  width: 340px; max-width: calc(100vw - 40px);
   background: rgba(255,255,255,0.95);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);

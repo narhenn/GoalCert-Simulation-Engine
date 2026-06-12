@@ -8,7 +8,7 @@ import BlueWorkspace from "../components/sim/BlueWorkspace";
 import VictimDesktop from "../components/sim/VictimDesktop";
 import AarReport from "../components/AarReport";
 import GuidePanel from "../components/sim/GuidePanel";
-import JillaChat from "../components/sim/JillaChat";
+// JillaChat sidebar removed — Jilla is now FAB-only via JillaTeacher
 import JillaTeacher from "../components/sim/JillaTeacher";
 import ResultOverlayModal from "../components/sim/ResultOverlay";
 import NotificationDock, { NotifyMsg } from "../components/sim/NotificationDock";
@@ -169,8 +169,7 @@ export default function ScenarioWorkspace() {
       ))}
 
       <div className="ws-body" style={{ display: "flex" }}>
-        {/* JillaChat sidebar (collapsible) */}
-        <JillaChat sim={sim} myRole={myRole} scenarioId={scenarioId} />
+        {/* Jilla is FAB-only — no sidebar, see JillaTeacher below */}
         <div style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
           {(() => {
             const st = sim.team_status?.[tab];
