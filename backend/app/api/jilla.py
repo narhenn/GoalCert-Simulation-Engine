@@ -21,6 +21,7 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/api/jilla", tags=["jilla"])
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # ---------------------------------------------------------------------------
 #  System prompt — Jilla's personality and teaching style
@@ -79,15 +80,44 @@ class ChatResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-#  Claude API integration
+#  LLM API integration (OpenAI preferred, Claude fallback)
 # ---------------------------------------------------------------------------
-async def _call_claude(system: str, messages: list[dict], max_tokens: int = 300) -> str:
-    """Call Claude API. Returns empty string if no API key or on error."""
+async def _call_openai(system: str, messages: list[dict], max_tokens: int = 400) -> str:
+    """Call OpenAI GPT-4o-mini. Fast, cheap, good for teaching."""
+    if not OPENAI_KEY:
+        return ""
+    try:
+        import httpx
+        oai_messages = [{"role": "system", "content": system}] + messages
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": oai_messages,
+                    "max_tokens": max_tokens,
+                    "temperature": 0.7,
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data["choices"][0]["message"]["content"]
+    except Exception:
+        pass
+    return ""
+
+
+async def _call_claude(system: str, messages: list[dict], max_tokens: int = 400) -> str:
+    """Call Claude API. Fallback if OpenAI is not available."""
     if not ANTHROPIC_KEY:
         return ""
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=20.0) as client:
             resp = await client.post(
                 "https://api.anthropic.com/v1/messages",
                 headers={
@@ -107,6 +137,17 @@ async def _call_claude(system: str, messages: list[dict], max_tokens: int = 300)
                 return data["content"][0]["text"]
     except Exception:
         pass
+    return ""
+
+
+async def _call_llm(system: str, messages: list[dict], max_tokens: int = 400) -> str:
+    """Try OpenAI first (faster), then Claude, then return empty for rule-based fallback."""
+    result = await _call_openai(system, messages, max_tokens)
+    if result:
+        return result
+    result = await _call_claude(system, messages, max_tokens)
+    if result:
+        return result
     return ""
 
 
@@ -252,20 +293,19 @@ async def chat(req: ChatRequest) -> ChatResponse:
     """Send a message to Jilla, get a contextual teaching response."""
     context = _build_context(req.sim_state, req.role, req.scenario_id)
 
-    # Try Claude API first
-    if ANTHROPIC_KEY:
-        system = SYSTEM_PROMPT + f"\n\nCURRENT SIMULATION STATE:\n{context}"
-        messages = []
-        for h in req.history[-6:]:  # last 6 messages for context
-            messages.append({"role": h["role"], "content": h["content"]})
-        messages.append({"role": "user", "content": req.message})
+    # Try LLM (OpenAI first, then Claude)
+    system = SYSTEM_PROMPT + f"\n\nCURRENT SIMULATION STATE:\n{context}"
+    messages = []
+    for h in req.history[-6:]:
+        messages.append({"role": h["role"], "content": h["content"]})
+    messages.append({"role": "user", "content": req.message})
 
-        response = await _call_claude(system, messages)
-        if response:
-            return ChatResponse(
-                message=response,
-                suggestions=["What should I do next?", "Explain this concept", "I'm stuck"],
-            )
+    response = await _call_llm(system, messages)
+    if response:
+        return ChatResponse(
+            message=response,
+            suggestions=["What should I do next?", "Explain this concept", "I'm stuck"],
+        )
 
     # Fallback to rule-based
     return _fallback_response(req.message, req.role, req.sim_state)
