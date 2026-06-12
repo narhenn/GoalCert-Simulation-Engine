@@ -1,6 +1,7 @@
 /** GoalCert brand mark — a circular "G" with a checkmark, drawn as SVG so it scales crisply. */
 export function Logo({ size = 34, color = "currentColor" }: { size?: number; color?: string }) {
-  const w = Math.round(size * 0.31);
+  // stroke-width is in viewBox units (0-100), not pixel units — keep it fixed
+  const w = 10;
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" role="img" aria-label="GoalCert">
       {/* G — near-full ring with an inner bar on the right */}
