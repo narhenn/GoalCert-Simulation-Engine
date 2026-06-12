@@ -96,13 +96,13 @@ export default function GuidePanel({ sim, myRole, scenarioId, onHighlightNode }:
       )}
 
       {/* Progress */}
-      {guide && (
+      {guide?.progress && (
         <div style={{ padding: "10px 12px", marginTop: "auto" }}>
           <div style={{ fontSize: 10, color: "var(--gc-muted)", marginBottom: 4 }}>
             Progress: {guide.progress.done}/{guide.progress.total} tools used
           </div>
           <div style={{ height: 4, borderRadius: 2, background: "var(--gc-border)" }}>
-            <div style={{ height: "100%", borderRadius: 2, width: `${(guide.progress.done / guide.progress.total) * 100}%`,
+            <div style={{ height: "100%", borderRadius: 2, width: `${guide.progress.total > 0 ? (guide.progress.done / guide.progress.total) * 100 : 0}%`,
               background: "var(--gc-accent)", transition: "width 0.5s" }} />
           </div>
         </div>

@@ -39,7 +39,7 @@ export default function ResultOverlay({ result, onClose, onGoToNext }: Props) {
       if (pct <= 0) { clearInterval(tick); onClose(); }
     }, 50);
     return () => clearInterval(tick);
-  }, [result, onClose]);
+  }, [result]);  // eslint-disable-line react-hooks/exhaustive-deps — onClose is stable
 
   if (!result) return null;
 

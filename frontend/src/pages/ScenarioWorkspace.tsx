@@ -50,7 +50,7 @@ export default function ScenarioWorkspace() {
       setSess(null);
       live.clearError();
     }
-  }, [live.state.error]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, live.state.error]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // default the active tab to your seat once chosen
   useEffect(() => { if (sess?.role) setTab(sess.role); }, [sess?.role]);

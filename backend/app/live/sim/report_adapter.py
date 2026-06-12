@@ -335,7 +335,8 @@ def _add_findings(sim: "ScenarioSim", base: dict) -> None:
                            "Without escalation from SOC, Blue is working blind."]}
 
     red_s, red_w = [], []
-    if "ransomware" in sim.teams["red"].done or impacted > 0:
+    encrypt_tools = {"ransomware", "ransomware_r5", "gpo_ransomware"}
+    if encrypt_tools & sim.teams["red"].done or impacted > 0:
         red_s.append("Drove the intrusion all the way to ransomware impact.")
     if sim.infected_total() + impacted > 0:
         red_s.append(f"Spread to {sim.infected_total() + impacted} host(s) before the run ended.")

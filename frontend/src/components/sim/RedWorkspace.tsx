@@ -14,11 +14,12 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
   const [pending, setPending] = useState<StagedCmd | null>(null);
   const red = sim.teams.red;
   const worm = sim.worm;
-  const pz = sim.topology.hosts.find((h: any) => h.patient_zero);
+  const hosts = sim?.topology?.hosts || [];
+  const pz = hosts.find((h: any) => h.patient_zero);
   const inflight = (sim.inflight || []).filter((f: any) => f.team === "red");
   const busy = inflight.length > 0;
 
-  const hostName = (id?: string) => sim.topology.hosts.find((h: any) => h.id === id)?.name;
+  const hostName = (id?: string) => hosts.find((h: any) => h.id === id)?.name;
   const stage = (toolId: string, params: Record<string, string>, command: string, label: string) => {
     const hid = params.host || (params.hosts || "").split(",")[0];
     setPending({ toolId, params, command, label, targetLabel: hostName(hid) });
@@ -29,10 +30,10 @@ export default function RedWorkspace({ sim, canPlay, runTool, events, termUrl, e
   const execute = (toolId: string, params: Record<string, string>) => { runTool(toolId, params); setPending(null); };
 
   const objectives = [
-    { label: "Establish a foothold", met: sim.topology.hosts.some((h: any) => ["exploited", "infected", "propagating"].includes(h.state)) },
-    { label: "Discover the network", met: sim.topology.hosts.some((h: any) => h.revealed && !h.patient_zero) },
+    { label: "Establish a foothold", met: hosts.some((h: any) => ["exploited", "infected", "propagating"].includes(h.state)) },
+    { label: "Discover the network", met: hosts.some((h: any) => h.revealed && !h.patient_zero) },
     { label: "Move laterally / spread", met: worm.propagating || worm.infected > 1 },
-    { label: "Disable recovery", met: !worm.backups_safe || sim.topology.hosts.some((h: any) => (h.flags || []).includes("recovery_disabled")) },
+    { label: "Disable recovery", met: !worm.backups_safe || hosts.some((h: any) => (h.flags || []).includes("recovery_disabled")) },
     { label: "Encrypt for impact", met: worm.impacted > 0 },
   ];
 
