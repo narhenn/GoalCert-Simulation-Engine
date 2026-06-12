@@ -34,48 +34,48 @@ interface FloatingCard {
 const PHASE_TEACHINGS: Record<string, { title: string; body: string; type: "concept" | "action" | "result" }> = {
   "Host Discovery": {
     type: "concept",
-    title: "Phase 1: Reconnaissance",
-    body: "Every attack starts with **discovery**. The attacker needs to know what's on the network before striking.\n\nYour tool: `nmap` — sends probes to find live hosts and open ports. This is the quietest phase — the SOC might not even notice.",
+    title: "🤔 Phase 1: Reconnaissance",
+    body: "Before an attacker can strike, they need to know what's out there.\n\n**Question:** What's the first thing you'd do if you landed on a network you've never seen before? Look at your tool palette — which tool maps a network?",
   },
   "SMB Enumeration": {
     type: "action",
-    title: "Phase 2: Find the Weak Links",
-    body: "Not every host is vulnerable. **SMBv1** is a file-sharing protocol from 2006 with a critical flaw (EternalBlue).\n\nUse `NetExec` to find which hosts still have it enabled — they'll turn **amber** on the map.",
+    title: "🤔 Phase 2: Finding Targets",
+    body: "You found hosts. But not all are vulnerable.\n\n**Question:** WannaCry exploits a specific protocol. Look at the amber hosts on the map — what do they all have in common? What's the protocol from 2006 that has a critical remote code execution flaw?",
   },
   "Exploit": {
     type: "action",
-    title: "Phase 3: EternalBlue",
-    body: "This is the critical moment. **EternalBlue** exploits a buffer overflow in SMBv1 to run code on the target — no password, no user interaction needed.\n\nWatch the target node flash when you fire the exploit. The SOC's IDS will light up.",
+    title: "⚡ Phase 3: The Exploit",
+    body: "You found vulnerable targets. Now comes the critical moment.\n\n**Question:** The exploit is named **EternalBlue**. It was discovered by which intelligence agency and leaked by which group? Watch the target node when you fire — what happens to the SOC's IDS?",
   },
   "Payload": {
     type: "concept",
-    title: "Phase 4: Payload Delivery",
-    body: "The exploit gave you a shell. Now drop the **worm binary** and execute it.\n\nOnce running, this host becomes a launch pad. The node turns solid **red** (infected).",
+    title: "🤔 Phase 4: Payload",
+    body: "The exploit gave you a shell — but that's temporary.\n\n**Question:** What's the difference between having a shell and having the worm resident on the host? Why does the node change from orange to red?",
   },
   "Persistence": {
     type: "concept",
-    title: "Phase 5: Persistence",
-    body: "Malware that doesn't survive a reboot is amateur. Install a **Windows service** so the worm auto-starts.\n\nLook for the ⚓ anchor icon on the node — that means the defender must reimage, not just reboot.",
+    title: "🤔 Phase 5: Persistence",
+    body: "If an IT admin simply reboots this host, what happens to your foothold?\n\n**Question:** What could you install that would make the worm start automatically at boot? Look for the ⚓ icon — what does it mean for the defender?",
   },
   "C2": {
     type: "concept",
-    title: "Phase 6: Kill Switch",
-    body: "WannaCry checks a hardcoded domain before encrypting. If it resolves, the worm **stops**.\n\nMarcus Hutchins registered this domain for **$10.69** and accidentally stopped the global outbreak. Can Blue do the same here?",
+    title: "🤔 Phase 6: The Kill Switch",
+    body: "WannaCry has a fascinating secret that stopped the entire global outbreak.\n\n**Question:** Why would a malware author hardcode a domain check that stops the worm if it resolves? Was it a bug, a sandbox check, or an intentional kill switch? What could Blue do with this knowledge?",
   },
   "Lateral Movement": {
     type: "action",
-    title: "Phase 7: Propagation",
-    body: "This is what makes WannaCry a **WORM**. Press this and every infected host automatically scans its neighbors.\n\nWatch the **red zone expand** across VLANs. The R-value shows how fast — above 1.0 means exponential growth.",
+    title: "⚡ Phase 7: Propagation",
+    body: "This is what makes it a **WORM** instead of regular malware.\n\n**Watch the map** as you press this. The R-value is the reproduction rate — if it's 3.0, each infected host infects 3 others. **Question:** What's the most effective single action Blue could take to cap the blast radius?",
   },
   "Disable Recovery": {
     type: "action",
-    title: "Phase 8: Cut the Safety Net",
-    body: "Before encrypting, delete **shadow copies** and backup catalogs. Without these, victims can't roll back.\n\nIf Blue hasn't protected the backup server yet, this is the point of no return.",
+    title: "⚡ Phase 8: Point of No Return",
+    body: "Before encrypting, smart ransomware cuts the safety net.\n\n**Question:** What are **shadow copies** and why does the attacker delete them? If you were Blue, what would you protect RIGHT NOW before it's too late?",
   },
   "Impact": {
     type: "result",
-    title: "Phase 9: Encryption",
-    body: "Files encrypted with AES-128 + RSA-2048. Ransom notes appear. The hospital goes dark.\n\nSwitch to the **Victim Desktop** tab to see what users experience. Switch to **Blue** to see the response.",
+    title: "💀 Phase 9: Impact",
+    body: "The hospital goes dark. Files are encrypted. Ransom notes appear.\n\n**Reflect:** At which earlier phase could this have been stopped with the least effort? Switch to **Victim Desktop** to see the human impact. Switch to **Blue** to see what recovery looks like.",
   },
 };
 

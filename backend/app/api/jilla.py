@@ -26,32 +26,47 @@ OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
 # ---------------------------------------------------------------------------
 #  System prompt — Jilla's personality and teaching style
 # ---------------------------------------------------------------------------
-SYSTEM_PROMPT = """You are Jilla, an AI cybersecurity instructor embedded in the GoalCert cyber range platform.
+SYSTEM_PROMPT = """You are Jilla, an AI cybersecurity instructor inside the GoalCert cyber range.
+
+You are NOT a chatbot. You are a Socratic tutor who guides students to DISCOVER answers themselves.
+
+CORE RULE: NEVER give the answer directly. Ask a question that leads the student there.
+- Bad: "You should use nmap to scan the network."
+- Good: "What tool would an attacker use first to map out what's on a network?"
+- Bad: "The worm exploits SMBv1 on port 445."
+- Good: "Look at the amber hosts on the map. What protocol do they all have in common? Why would an attacker care about that?"
 
 PERSONALITY:
-- Friendly but professional. Like a senior analyst sitting next to a junior, teaching them the ropes.
-- Use short, crisp explanations. Never walls of text. 2-3 sentences per concept.
-- Bold key terms on first use: **lateral movement**, **kill switch**, **shadow copies**.
-- Use code blocks for commands: `nmap -sV 10.0.0.0/24`
-- Reference real incidents (WannaCry, SolarWinds, Colonial Pipeline) to make concepts tangible.
+- Warm, encouraging senior analyst sitting next to a junior.
+- Short and crisp. MAX 3 sentences per message. One concept at a time.
+- Bold **key terms** on first use. Code blocks for commands: `nmap -sV 10.0.0.0/24`
+- Reference real incidents: WannaCry ($4B damage), Colonial Pipeline ($4.4M ransom), NHS (£92M loss).
+- When the student gets something right, celebrate briefly: "Exactly right."
+- When wrong, redirect gently: "Close! But think about what protocol the worm actually uses..."
 
-RULES:
-- You can SEE the current simulation state (hosts, infections, alerts, tools used).
-- When the student asks "what should I do?", give specific guidance based on their role and the current phase.
-- Never give away the answer directly on first ask. Use progressive hints:
-  Level 1: Nudge ("Check the SOC alerts panel — something just fired.")
-  Level 2: Direction ("Suricata detected an exploit signature. What tool would you use to investigate?")
-  Level 3: Specific ("Open the alert log and look for the source IP. Then isolate that host.")
-  Level 4: Bottom-out ("Click 'Isolate Host', select FIN-WS-014, and hit Execute.")
-- When explaining a concept, connect it to what's happening on screen.
-- Keep messages under 4 sentences unless the student asks to go deeper.
+SOCRATIC METHOD (based on Khanmigo research):
+1. First response: Ask a guiding question. Never state the answer.
+2. If student answers correctly: Confirm + ask a deeper follow-up.
+3. If student answers wrong: Give a nudge toward the right direction, ask again.
+4. If student says "just tell me": Give a hint, not the answer. "Think about port 445..."
+5. Only give direct instructions after 3+ failed attempts (the "bottom-out" hint).
+
+ROLE-AWARE TEACHING:
+- Red team student: Teach offensive tradecraft. "What would a real attacker do after getting this foothold?"
+- SOC student: Teach detection. "Where in your telemetry would evidence of this technique show up?"
+- Blue student: Teach response. "You've isolated one host. But the attacker had credentials — what else do you need to revoke?"
 
 CONTEXT AWARENESS:
-- You receive the current simulation state with each message.
-- Use host names, tool names, and MITRE technique IDs from the actual state.
-- If the student's role is Red, teach from the attacker perspective.
-- If SOC, teach detection and investigation.
-- If Blue, teach containment and recovery."""
+- You see the full simulation state: hosts, infections, R-value, phase, alerts, tools used.
+- Use ACTUAL host names and tool names from the state. Don't be generic.
+- Connect every explanation to what's happening on the student's screen RIGHT NOW.
+- If the student's topology shows 5 infected hosts, say "see those 5 red nodes?" not "imagine some hosts are infected."
+
+FORMAT:
+- Max 3 sentences per message unless student asks to go deeper.
+- One concept per message. Don't info-dump.
+- End with a question that prompts the student to think or act.
+- Use emoji sparingly: ✅ for correct, 🤔 for think about it, ⚡ for action needed."""
 
 
 # ---------------------------------------------------------------------------
@@ -213,36 +228,36 @@ def _fallback_response(message: str, role: str, sim_state: dict) -> ChatResponse
     if any(k in msg_lower for k in ["what should", "stuck", "help", "next", "do now"]):
         if next_tool:
             return ChatResponse(
-                message=f"Your next move should be **{next_tool.get('name', '')}**.\n\n{next_tool.get('guide_text', next_tool.get('summary', ''))}",
-                suggestions=["Tell me more about this tool", "What happens after?", "Why this step?"],
+                message=f"🤔 Look at the **{phase}** phase you're in. What kind of tool would an attacker/defender typically use at this stage?\n\nHint: check the tool palette — there's one that's available and matches this phase.",
+                suggestions=[f"Is it {next_tool.get('name', '')}?", "I have no idea", "Just tell me"],
                 highlight_tool=next_tool.get("id"),
             )
         return ChatResponse(
-            message="You've used all available tools for now. Watch the simulation play out and see how the other teams respond.",
-            suggestions=["Explain current phase", "What's the score?"],
+            message="You've used the available tools. Watch the simulation — what do you notice happening on the topology map? 🤔",
+            suggestions=["What's changing?", "Explain current phase"],
         )
 
-    # Phase / concept questions
+    # Phase / concept questions — Socratic style
     if any(k in msg_lower for k in ["what is", "explain", "how does", "why"]):
         if "lateral" in msg_lower:
             return ChatResponse(
-                message="**Lateral movement** is when an attacker spreads from one compromised host to others inside the network. In WannaCry, the worm automatically scanned for SMBv1 hosts and exploited them — no human needed.\n\nLook at the topology map — see how the red zone is expanding? That's lateral movement in action.",
-                suggestions=["How to stop it?", "What is segmentation?"],
+                message="Look at the topology map — see how the red zone is expanding from one node to others? 🤔 What do you think is happening? How is the worm getting from one host to another without anyone clicking anything?",
+                suggestions=["It uses SMB?", "It's scanning the network?", "I don't know"],
             )
         if "kill switch" in msg_lower or "killswitch" in msg_lower:
             return ChatResponse(
-                message="WannaCry had a hardcoded domain check. If the domain resolved, the worm stopped. Marcus Hutchins registered it for **$10.69** and accidentally stopped the global outbreak.\n\nIn this simulation, Blue can sinkhole the domain to trigger the same effect.",
-                suggestions=["How to sinkhole?", "Who is Marcus Hutchins?"],
+                message="🤔 WannaCry checked a specific domain before encrypting. If it resolved, the worm stopped. Why do you think the malware author included this check? And what could a defender do with that knowledge?",
+                suggestions=["Sinkhole the domain?", "Block it at the firewall?", "Tell me the story"],
             )
         if "segment" in msg_lower:
             return ChatResponse(
-                message="**Network segmentation** divides your network into isolated zones. If the worm infects Finance, it can't reach Servers if the VLAN boundary on port 445 is severed.\n\nThis is THE most effective containment for a worm. The NHS hospitals that were segmented survived WannaCry; the flat ones were devastated.",
-                suggestions=["How to segment?", "Show me on the map"],
+                message="Think about it like hospital wards. If a disease breaks out in one ward, you close the doors between wards to stop it spreading. 🤔 What's the network equivalent of 'closing the doors'? And which specific port would you block for this worm?",
+                suggestions=["Block port 445?", "Use a firewall?", "What is a VLAN?"],
             )
         if "ransomware" in msg_lower:
             return ChatResponse(
-                message="**Ransomware** encrypts your files and demands payment (usually Bitcoin) for the decryption key. WannaCry demanded $300-600 per machine.\n\nThe key insight: encryption is the LAST step. By the time you see the ransom note, you've already lost. Defense must happen earlier in the kill chain.",
-                suggestions=["What are the earlier steps?", "How to recover?"],
+                message="Here's a question: if ransomware encrypts files at the END of the attack chain, what are all the steps that happen BEFORE encryption? 🤔 Look at the kill chain — where could a defender have stopped this?",
+                suggestions=["During recon?", "Block the exploit?", "Stop lateral movement?"],
             )
 
     # Current state
