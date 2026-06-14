@@ -1,171 +1,351 @@
 /**
- * JillaTeacher — floating teaching orchestrator with premium animations.
+ * JillaTeacher v6 — Jilla is a PERSON, not a system.
  *
- * NOT a sidebar chat. Instead:
- * - Glassmorphism teaching cards that float near relevant workspace elements
- * - Spotlight overlay that dims everything except what to look at
- * - FAB button (bottom-right) with gradient glow ring
- * - Chat popup that slides up from FAB with spring animation
- * - Proactive Socratic teaching at phase transitions
+ * One conversational panel where Jilla talks to you like a mentor
+ * sitting next to you. She tells the story, reacts when you act,
+ * explains concepts, and asks questions — all in one conversation.
+ *
+ * Messages appear automatically (event-driven). Student CAN type
+ * back but doesn't have to. Jilla is the storyteller.
  */
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import PhaseCinematic from "./PhaseCinematic";
+import IncidentTicker from "./IncidentTicker";
 
 interface Props {
   sim: any;
   myRole: string;
   scenarioId: string;
+  sessionId?: string;
 }
 
-// Phase teaching content — used by chat endpoint, kept here for reference
-const PHASE_TEACHINGS: Record<string, { title: string; body: string; type: "concept" | "action" | "result" }> = {
-  "Host Discovery": {
-    type: "concept",
-    title: "Phase 1: Reconnaissance",
-    body: "Before an attacker can strike, they need to know what's out there.\n\n**Question:** What's the first thing you'd do if you landed on a network you've never seen before? Look at your tool palette \u2014 which tool maps a network?",
-  },
-  "SMB Enumeration": {
-    type: "action",
-    title: "Phase 2: Finding Targets",
-    body: "You found hosts. But not all are vulnerable.\n\n**Question:** WannaCry exploits a specific protocol. Look at the amber hosts on the map \u2014 what do they all have in common? What's the protocol from 2006 that has a critical remote code execution flaw?",
-  },
-  "Exploit": {
-    type: "action",
-    title: "Phase 3: The Exploit",
-    body: "You found vulnerable targets. Now comes the critical moment.\n\n**Question:** The exploit is named **EternalBlue**. It was discovered by which intelligence agency and leaked by which group? Watch the target node when you fire \u2014 what happens to the SOC's IDS?",
-  },
-  "Payload": {
-    type: "concept",
-    title: "Phase 4: Payload",
-    body: "The exploit gave you a shell \u2014 but that's temporary.\n\n**Question:** What's the difference between having a shell and having the worm resident on the host? Why does the node change from orange to red?",
-  },
-  "Persistence": {
-    type: "concept",
-    title: "Phase 5: Persistence",
-    body: "If an IT admin simply reboots this host, what happens to your foothold?\n\n**Question:** What could you install that would make the worm start automatically at boot? Look for the \u2693 icon \u2014 what does it mean for the defender?",
-  },
-  "C2": {
-    type: "concept",
-    title: "Phase 6: The Kill Switch",
-    body: "WannaCry has a fascinating secret that stopped the entire global outbreak.\n\n**Question:** Why would a malware author hardcode a domain check that stops the worm if it resolves? Was it a bug, a sandbox check, or an intentional kill switch? What could Blue do with this knowledge?",
-  },
-  "Lateral Movement": {
-    type: "action",
-    title: "Phase 7: Propagation",
-    body: "This is what makes it a **WORM** instead of regular malware.\n\n**Watch the map** as you press this. The R-value is the reproduction rate \u2014 if it's 3.0, each infected host infects 3 others. **Question:** What's the most effective single action Blue could take to cap the blast radius?",
-  },
-  "Disable Recovery": {
-    type: "action",
-    title: "Phase 8: Point of No Return",
-    body: "Before encrypting, smart ransomware cuts the safety net.\n\n**Question:** What are **shadow copies** and why does the attacker delete them? If you were Blue, what would you protect RIGHT NOW before it's too late?",
-  },
-  "Impact": {
-    type: "result",
-    title: "Phase 9: Impact",
-    body: "The hospital goes dark. Files are encrypted. Ransom notes appear.\n\n**Reflect:** At which earlier phase could this have been stopped with the least effort? Switch to **Victim Desktop** to see the human impact. Switch to **Blue** to see what recovery looks like.",
-  },
-};
+interface JillaMessage {
+  id: number;
+  type: "story" | "react" | "teach" | "question" | "user" | "system";
+  text: string;
+  timestamp: number;
+}
 
-export default function JillaTeacher({ sim, myRole, scenarioId }: Props) {
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState("");
-  const [chatResponse, setChatResponse] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const lastPhaseRef = useRef("");
+/** Jilla's animated face avatar — eyes blink, expression reacts to state */
+function JillaFace({ size = 40, state = "idle" }: { size?: number; state?: "idle" | "thinking" | "speaking" }) {
+  const s = size;
+  const eyeW = Math.round(s * 0.15);
+  const eyeH = Math.round(s * 0.2);
+  const eyeTop = Math.round(s * 0.34);
+  const eyeGap = Math.round(s * 0.22);
+  const mouthW = Math.round(s * 0.25);
+  const mouthBottom = Math.round(s * 0.2);
 
-  // Track phase for chat context (but don't auto-pop cards — too cluttered)
+  return (
+    <div className={`jilla-face-avatar jilla-face-${state}`}
+      style={{ width: s, height: s, minWidth: s }}>
+      {/* Left eye */}
+      <div className="jilla-eye jilla-eye-l"
+        style={{ width: eyeW, height: eyeH, top: eyeTop, left: `calc(50% - ${eyeGap}px)` }} />
+      {/* Right eye */}
+      <div className="jilla-eye jilla-eye-r"
+        style={{ width: eyeW, height: eyeH, top: eyeTop, left: `calc(50% + ${eyeGap - eyeW}px)` }} />
+      {/* Mouth / expression */}
+      <div className="jilla-mouth"
+        style={{ width: mouthW, bottom: mouthBottom, left: `calc(50% - ${mouthW / 2}px)` }} />
+    </div>
+  );
+}
+
+export default function JillaTeacher({ sim, myRole, scenarioId, sessionId = "" }: Props) {
+  const [messages, setMessages] = useState<JillaMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [unread, setUnread] = useState(0);
+
+  // Phase cinematic
+  const [cinematicPhase, setCinematicPhase] = useState<{ phase: string; prevPhase?: string } | null>(null);
+
+  // Refs
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const prevSimRef = useRef<any>(null);
+  const lastEventTick = useRef(0);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const introDone = useRef(false);
+  const seqRef = useRef(0);
+
+  // ---- Add message ----
+  const addJillaMsg = useCallback((type: JillaMessage["type"], text: string) => {
+    seqRef.current++;
+    const msg: JillaMessage = { id: seqRef.current, type, text, timestamp: Date.now() };
+    setMessages(prev => [...prev, msg]);
+    if (!panelOpen) setUnread(prev => prev + 1);
+  }, [panelOpen]);
+
+  // Auto-scroll
   useEffect(() => {
-    const phase = sim?.guide?.phase;
-    if (phase) lastPhaseRef.current = phase;
-  }, [sim?.guide?.phase]);
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
 
-  // Chat
-  const sendChat = useCallback(async (msg: string) => {
-    if (!msg.trim() || chatLoading) return;
-    setChatInput(""); setChatLoading(true); setChatResponse("");
+  // ---- Fire event to backend ----
+  const fireEvent = useCallback(async (eventType: string, eventData: Record<string, any> = {}) => {
+    lastEventTick.current = sim?.tick || 0;
+    setLoading(true);
     try {
+      const resp = await fetch("/api/jilla/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_type: eventType, session_id: sessionId,
+          role: myRole, scenario_id: scenarioId,
+          sim_state: sim || {}, event_data: eventData,
+        }),
+      });
+      const data = await resp.json();
+      if (data.narration) {
+        addJillaMsg("story", data.narration);
+      }
+      if (data.card && data.card.title && data.card.body) {
+        // Teach the concept as a message, not a floating card
+        addJillaMsg("teach", `**${data.card.title}**\n${data.card.body}`);
+      }
+    } catch { /* silent */ }
+    setLoading(false);
+  }, [sim, myRole, scenarioId, sessionId, addJillaMsg]);
+
+  // ---- Intro ----
+  useEffect(() => {
+    if (introDone.current || !myRole) return;
+    introDone.current = true;
+    fetch(`/api/jilla/intro?role=${myRole}&scenario_id=${scenarioId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.narration) addJillaMsg("story", data.narration);
+        if (data.card?.body) {
+          setTimeout(() => addJillaMsg("teach", data.card.body), 2000);
+        }
+      })
+      .catch(() => addJillaMsg("story", "Hey, I'm Jilla. I'll be guiding you through this scenario. Let's begin."));
+  }, [myRole, scenarioId, addJillaMsg]);
+
+  // ---- Event detection ----
+  useEffect(() => {
+    const prev = prevSimRef.current;
+    prevSimRef.current = sim;
+    if (!sim || !prev) return;
+    if (sim.tick - lastEventTick.current < 3) return;
+
+    const curPhase = sim.guide?.phase;
+    const prevPhase = prev.guide?.phase;
+    if (curPhase && curPhase !== prevPhase) {
+      setCinematicPhase({ phase: curPhase, prevPhase });
+      fireEvent("phase_changed", { phase: curPhase, prev_phase: prevPhase });
+      return;
+    }
+
+    const curEvents = sim.events || [];
+    const prevEvents = prev.events || [];
+    if (curEvents.length > prevEvents.length) {
+      const newEvts = curEvents.slice(prevEvents.length);
+      const toolEvt = newEvts.find((e: any) => e.kind === "action" || e.kind === "response");
+      if (toolEvt) {
+        fireEvent("tool_used", {
+          tool_id: toolEvt.data?.tool_id || "", tool_name: toolEvt.title || "",
+          role: toolEvt.role || myRole,
+        });
+        return;
+      }
+    }
+
+    const curInfected = sim.worm?.infected || 0;
+    const prevInfected = prev.worm?.infected || 0;
+    if (curInfected > prevInfected && curInfected - prevInfected >= 2) {
+      fireEvent("host_infected", { count: curInfected, delta: curInfected - prevInfected });
+      return;
+    }
+
+    const curAlerts = sim.alerts?.length || 0;
+    const prevAlerts = prev.alerts?.length || 0;
+    if (curAlerts > prevAlerts) {
+      const newAlert = sim.alerts[sim.alerts.length - 1];
+      fireEvent("alert_generated", { alert: newAlert?.label, severity: newAlert?.severity });
+      return;
+    }
+
+    if (sim.worm?.segmented && !prev.worm?.segmented) {
+      fireEvent("tool_used", { tool_id: "segment", tool_name: "Network Segmentation", role: "blue" });
+      return;
+    }
+    if (sim.worm?.kill_switch === "sinkholed" && prev.worm?.kill_switch !== "sinkholed") {
+      fireEvent("tool_used", { tool_id: "sinkhole", tool_name: "Kill Switch Sinkhole", role: "blue" });
+      return;
+    }
+    if (sim.finished && !prev.finished) {
+      fireEvent("phase_changed", { phase: "Debrief", prev_phase: sim.guide?.phase });
+    }
+  }, [sim?.tick, fireEvent, myRole]);
+
+  // ---- Idle detection ----
+  useEffect(() => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => {
+      fireEvent("idle_too_long", { idle_seconds: 45 });
+    }, 45000);
+    return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
+  }, [sim?.guide?.progress?.done, fireEvent]);
+
+  // ---- Student sends a message ----
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || loading) return;
+    const userMsg = text.trim();
+    setInput("");
+    addJillaMsg("user", userMsg);
+    setLoading(true);
+    try {
+      const history = messages.slice(-8).map(m => ({
+        role: m.type === "user" ? "user" : "assistant",
+        content: m.text,
+      }));
       const resp = await fetch("/api/jilla/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg.trim(), role: myRole, scenario_id: scenarioId, sim_state: sim || {}, history: [] }),
+        body: JSON.stringify({
+          message: userMsg, role: myRole, scenario_id: scenarioId,
+          sim_state: sim || {}, history,
+        }),
       });
       const data = await resp.json();
-      setChatResponse(data.message);
+      addJillaMsg("react", data.message);
     } catch {
-      setChatResponse("Sorry, couldn't process that. Try again?");
-    } finally {
-      setChatLoading(false);
+      addJillaMsg("react", "Sorry, I couldn't process that. Try again?");
     }
-  }, [chatLoading, myRole, scenarioId, sim]);
+    setLoading(false);
+  }, [loading, messages, myRole, scenarioId, sim, addJillaMsg]);
 
-  // Render markdown in popup
+  // ---- Keyboard shortcut ----
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "j" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        setPanelOpen(prev => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // ---- Render markdown ----
   const renderMd = (text: string) =>
     text.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
-      if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
+      if (part.startsWith("**") && part.endsWith("**"))
+        return <strong key={i}>{part.slice(2, -2)}</strong>;
       if (part.startsWith("`") && part.endsWith("`"))
-        return <code key={i} className="tc-inline-code">{part.slice(1, -1)}</code>;
+        return <code key={i} className="jilla-inline-code">{part.slice(1, -1)}</code>;
       return <span key={i}>{part}</span>;
     });
 
+  // Message style by type
+  const msgStyle = (type: string) => {
+    switch (type) {
+      case "story": return "jilla-msg-story";
+      case "react": return "jilla-msg-react";
+      case "teach": return "jilla-msg-teach";
+      case "question": return "jilla-msg-question";
+      case "user": return "jilla-msg-user";
+      case "system": return "jilla-msg-system";
+      default: return "";
+    }
+  };
+
   return (
     <>
-      {/* Chat popup — slides up from FAB */}
-      {chatOpen && (
-        <div style={{ position: "fixed", bottom: 82, right: 20, zIndex: 9100 }}>
-          <div className="jilla-popup">
-            <div className="jilla-popup-header">
-              <div className="jilla-avatar-ring" style={{ width: 32, height: 32 }}>
-                <div className="jilla-avatar" style={{ fontSize: 13 }}>J</div>
+      {/* News Ticker */}
+      <IncidentTicker sim={sim} scenarioId={scenarioId} />
+
+      {/* Phase Cinematic */}
+      {cinematicPhase && (
+        <PhaseCinematic
+          phase={cinematicPhase.phase}
+          prevPhase={cinematicPhase.prevPhase}
+          role={myRole}
+          onDismiss={() => setCinematicPhase(null)}
+        />
+      )}
+
+      {/* ---- Jilla Panel (the main experience) ---- */}
+      {panelOpen ? (
+        <div className="jilla-convo-panel">
+          {/* Header */}
+          <div className="jilla-convo-header">
+            <JillaFace size={38} state={loading ? "thinking" : "idle"} />
+            <div className="jilla-convo-info">
+              <div className="jilla-convo-name">Jilla</div>
+              <div className="jilla-convo-status">
+                {loading ? "thinking..." : `guiding you as ${myRole.toUpperCase()}`}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--gc-text)" }}>Ask Jilla</div>
-                <div style={{ fontSize: 10, color: "var(--gc-muted)" }}>AI Instructor &middot; sees your sim state</div>
+            </div>
+            <button className="jilla-convo-minimize" onClick={() => setPanelOpen(false)}
+              title="Minimize (press J to reopen)">
+              <i className="fa fa-chevron-right" />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="jilla-convo-messages" ref={scrollRef}>
+            {messages.map(msg => (
+              <div key={msg.id} className={`jilla-convo-msg ${msgStyle(msg.type)}`}>
+                {msg.type !== "user" && msg.type !== "system" && (
+                  <JillaFace size={28} state={loading ? "thinking" : "speaking"} />
+                )}
+                <div className={`jilla-convo-bubble ${msg.type === "user" ? "user-bubble" : "jilla-bubble"}`}>
+                  {renderMd(msg.text)}
+                </div>
               </div>
-              <button onClick={() => setChatOpen(false)} className="tc-close"
-                style={{ background: "var(--gc-soft)", color: "var(--gc-muted)" }}>
-                <i className="fa fa-times" />
+            ))}
+
+            {/* Typing indicator */}
+            {loading && (
+              <div className="jilla-convo-msg jilla-msg-react">
+                <JillaFace size={28} state={loading ? "thinking" : "speaking"} />
+                <div className="jilla-convo-typing">
+                  <span className="jilla-dot" />
+                  <span className="jilla-dot" style={{ animationDelay: "0.15s" }} />
+                  <span className="jilla-dot" style={{ animationDelay: "0.3s" }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Quick actions */}
+          <div className="jilla-convo-actions">
+            {["What should I do?", "Tell me more", "Why does this matter?"].map(q => (
+              <button key={q} className="jilla-convo-chip" onClick={() => sendMessage(q)} disabled={loading}>
+                {q}
               </button>
-            </div>
+            ))}
+          </div>
 
-            {chatResponse && (
-              <div className="jilla-popup-body">
-                {renderMd(chatResponse)}
-              </div>
-            )}
-
-            {chatLoading && (
-              <div style={{ padding: "12px 16px", display: "flex", gap: 4 }}>
-                <span className="jilla-dot" style={{ animationDelay: "0s" }} />
-                <span className="jilla-dot" style={{ animationDelay: "0.15s" }} />
-                <span className="jilla-dot" style={{ animationDelay: "0.3s" }} />
-              </div>
-            )}
-
-            <div className="jilla-popup-actions">
-              {["What should I do?", "Explain current phase", "I'm stuck"].map(q => (
-                <button key={q} className="jilla-chip" onClick={() => sendChat(q)} disabled={chatLoading}>
-                  {q}
-                </button>
-              ))}
-            </div>
-
-            <form onSubmit={e => { e.preventDefault(); sendChat(chatInput); }} className="jilla-popup-input">
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} disabled={chatLoading}
-                placeholder="Ask anything..." className="jilla-input" />
-              <button type="submit" disabled={chatLoading || !chatInput.trim()}
-                className={`jilla-send${chatInput.trim() ? " active" : ""}`}>
+          {/* Input */}
+          <div className={`jilla-convo-input-area${inputFocused ? " focused" : ""}`}>
+            <form onSubmit={e => { e.preventDefault(); sendMessage(input); }} className="jilla-convo-form">
+              <input value={input} onChange={e => setInput(e.target.value)} disabled={loading}
+                placeholder="Ask Jilla anything..."
+                className="jilla-convo-input"
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)} />
+              <button type="submit" disabled={loading || !input.trim()}
+                className={`jilla-convo-send${input.trim() ? " active" : ""}`}>
                 <i className="fa fa-arrow-up" />
               </button>
             </form>
           </div>
         </div>
+      ) : (
+        /* Collapsed: small floating button with unread badge */
+        <button className="jilla-fab" onClick={() => { setPanelOpen(true); setUnread(0); }}
+          style={{ position: "fixed", bottom: 20, right: 20, zIndex: 9000 }}>
+          <JillaFace size={30} state="idle" />
+          {unread > 0 && <span className="jilla-fab-badge">{unread}</span>}
+        </button>
       )}
-
-      {/* FAB — small circle, bottom-right */}
-      <button className={`jilla-fab${chatOpen ? " open" : ""}`}
-        style={{ position: "fixed", bottom: 20, right: 20, zIndex: 9000 }}
-        onClick={() => setChatOpen(prev => !prev)}>
-        {chatOpen ? <i className="fa fa-times" style={{ fontSize: 16 }} /> : "J"}
-      </button>
     </>
   );
 }
