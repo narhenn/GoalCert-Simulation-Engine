@@ -86,7 +86,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     <>
       <nav id="sidebar">
         <div className="sidebar-logo">
-          <Logo size={32} color="var(--gc-primary)" />
+          <Logo size={32} />
           <div className="logo-text">Goalcert</div>
         </div>
         <div style={{ overflowY: "auto", flex: 1, paddingTop: 4 }}>

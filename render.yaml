@@ -1,0 +1,21 @@
+# Render Blueprint — single web service serving both API + frontend SPA.
+services:
+  - type: web
+    name: goalcert
+    runtime: python
+    plan: free
+    buildCommand: ./render-build.sh
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GOALCERT_AUTH_SECRET
+        generateValue: true
+      - key: GOALCERT_CORS_ORIGINS
+        value: '["*"]'
+      - key: GOALCERT_DATABASE_URL
+        value: sqlite+pysqlite:///./goalcert.db
+      - key: GOALCERT_SEED_ON_STARTUP
+        value: "true"
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: NODE_VERSION
+        value: "20.11.0"

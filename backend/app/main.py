@@ -1,10 +1,13 @@
 """FastAPI application entrypoint."""
 from __future__ import annotations
 
+import pathlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 import app.engine  # noqa: F401  (populate asset/control/technique registries)
 from app.api import auth, catalog, dashboard, jilla, lab, live, runs, scenarios
@@ -14,6 +17,9 @@ from app.db.base import init_db
 from app.ws import live as ws_live
 from app.ws import runs as ws_runs
 from app.ws import tripwire as ws_tripwire
+
+# Frontend dist/ directory (built by Vite, copied here during Render build)
+STATIC_DIR = pathlib.Path(__file__).resolve().parent.parent / "static"
 
 
 @asynccontextmanager
@@ -49,3 +55,16 @@ app.include_router(ws_tripwire.router)
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "service": "goalcert-engine"}
+
+
+# --- Serve frontend SPA (only when static/ exists, i.e. production) ----------
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="frontend-assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Serve index.html for all non-API routes (SPA client-side routing)."""
+        file = STATIC_DIR / full_path
+        if file.is_file():
+            return FileResponse(file)
+        return FileResponse(STATIC_DIR / "index.html")

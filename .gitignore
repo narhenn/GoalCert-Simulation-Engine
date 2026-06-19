@@ -27,6 +27,9 @@ Thumbs.db
 *.db
 pgdata/
 
+# Render build artifact (generated at deploy time)
+backend/static/
+
 # TS build info
 *.tsbuildinfo
 

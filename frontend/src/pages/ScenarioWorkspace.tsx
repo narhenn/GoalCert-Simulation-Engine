@@ -8,8 +8,10 @@ import BlueWorkspace from "../components/sim/BlueWorkspace";
 import VictimDesktop from "../components/sim/VictimDesktop";
 import AarReport from "../components/AarReport";
 import GuidePanel from "../components/sim/GuidePanel";
-// JillaChat sidebar removed — Jilla is now FAB-only via JillaTeacher
 import JillaTeacher from "../components/sim/JillaTeacher";
+import ScenarioIntro from "../components/sim/ScenarioIntro";
+import IncidentTicker from "../components/sim/IncidentTicker";
+import { AttackTimeline } from "../components/sim/JillaVisuals";
 import ResultOverlayModal from "../components/sim/ResultOverlay";
 import NotificationDock, { NotifyMsg } from "../components/sim/NotificationDock";
 import { TEAM_META } from "../components/sim/shared";
@@ -24,9 +26,8 @@ export default function ScenarioWorkspace() {
   const [sp] = useSearchParams();
   const mode = sp.get("mode") === "practice" ? "practice" : "teach";   // Library=practice, Live=teach
   const key = `gc_guided_${scenarioId}_${mode}`;
-  const [sess, setSess] = useState<Sess | null>(() => {
-    try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : null; } catch { return null; }
-  });
+  const [sess, setSess] = useState<Sess | null>(null);  // always show intro first
+  const [introDone, setIntroDone] = useState(false);   // track if user clicked "Enter"
   const [meta, setMeta] = useState<any>(null);
   const [lab, setLab] = useState<any>(null);
   const [tab, setTab] = useState<string>("red");
@@ -78,9 +79,20 @@ export default function ScenarioWorkspace() {
   }, [simEvents]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   function launch(name: string, role: string) {
+    // Check if we have an existing session we can reuse
+    try {
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const s = { ...JSON.parse(cached), role };
+        localStorage.setItem(key, JSON.stringify(s));
+        claimed.current = false; setIntroDone(true); setSess(s);
+        return;
+      }
+    } catch { /* no cached session, create new */ }
+
     api.createGuidedSession({ host_name: name || "operator", scenario_id: scenarioId, mode }).then((r) => {
       const s = { session_id: r.session_id, player_id: r.player_id, role };
-      localStorage.setItem(key, JSON.stringify(s)); claimed.current = false; setSess(s);
+      localStorage.setItem(key, JSON.stringify(s)); claimed.current = false; setIntroDone(true); setSess(s);
     });
   }
   function pickRole(role: string) {
@@ -89,7 +101,7 @@ export default function ScenarioWorkspace() {
   }
   function quit() { localStorage.removeItem(key); setSess(null); claimed.current = false; nav("/live"); }
 
-  if (!sess) return <Landing meta={meta} onLaunch={launch} onBack={() => nav("/live")} />;
+  if (!sess) return <ScenarioIntro meta={meta} scenarioId={scenarioId} onLaunch={launch} onBack={() => nav("/live")} />;
   if (!sess.role) return <RolePick meta={meta} connected={live.state.connected} onPick={pickRole} onBack={quit} />;
 
   const snap: any = live.state.snapshot;
@@ -152,6 +164,18 @@ export default function ScenarioWorkspace() {
           {sim.finished && resultClosed && <button className="btn" style={{ padding: "6px 12px" }} onClick={() => setResultClosed(false)}><i className="fa fa-file-lines" /> Result</button>}
         </div>
       </div>
+
+      {/* News ticker + attack timeline — inline */}
+      <IncidentTicker sim={sim} scenarioId={scenarioId} />
+      {sim?.guide?.phase && (
+        <AttackTimeline
+          phases={["Host Discovery", "SMB Enumeration", "Exploit", "Payload", "Persistence", "C2", "Lateral Movement", "Disable Recovery", "Impact"]
+            .map(name => ({ name, shortName: name.length > 12 ? name.slice(0, 10) + "\u2026" : name }))}
+          currentIdx={["Host Discovery", "SMB Enumeration", "Exploit", "Payload", "Persistence", "C2", "Lateral Movement", "Disable Recovery", "Impact"]
+            .indexOf(sim.guide.phase)}
+          role={myRole}
+        />
+      )}
 
       {/* recovery-phase banner — Red already won; you're now learning incident response on any seat */}
       {recoveryMode && !sim.finished && (
@@ -226,33 +250,64 @@ export default function ScenarioWorkspace() {
 }
 
 /* ---------- landing / role pick ---------- */
-function Landing({ meta, onLaunch, onBack }: { meta: any; onLaunch: (n: string, r: string) => void; onBack: () => void }) {
+const ROLE_NARRATIVES: Record<string, Record<string, string>> = {
+  "scn-wannacry-w1": {
+    red: "You are the operator. You've landed on a compromised host inside Mercy Regional Hospital — FIN-WS-014. The worm is loaded. 200 unpatched Windows machines sit on a flat, unsegmented network. Your mission: progress the kill chain from reconnaissance to encryption. The attack that caused $4 billion in global damage starts with your next command.",
+    soc: "It's 3 AM on a Friday night. You're the overnight SOC analyst at Mercy Regional Hospital. Somewhere on this network, an attacker has already compromised a host. Your job is to spot the first anomaly — the first unusual port scan, the first IDS signature — and escalate before the worm spreads to every machine in the hospital.",
+    blue: "You're the incident response lead at Mercy Regional. NHS England is about to get hit by the largest ransomware attack in history. Your hospital runs the same unpatched Windows 7 fleet. Your job: contain the blast radius. Segment the VLANs. Protect the backup server. Find the kill switch. The NHS hospitals that were segmented survived. The flat ones were devastated.",
+  },
+  "scn-r5-phishing": {
+    red: "You're an affiliate operator for the REvil ransomware gang. Your target: MediumCorp Financial's SecureMail. One weak password, one unpatched diagnostics tool — that's the difference between a secure company and a $2.5M ransom note. Brute-force a mailbox, find the vulnerability, get code execution.",
+    soc: "The email gateway just logged a spike in failed login attempts against SecureMail. Is it a brute-force attack? A misconfigured client? You need to triage fast. If you catch it at the brute-force stage, you save the company. Miss it, and the next alert is a ransom note.",
+    blue: "The SOC just escalated: confirmed unauthorized access to an employee's mailbox via brute-forced credentials. The attacker may have found internal vulnerabilities. Contain before they pivot. Revoke credentials. Isolate the system. The clock started when the SOC called.",
+  },
+  "scn-c5-edr": {
+    red: "GlobalTech MSP's EDR just went dark — 4 hours of zero endpoint visibility across 200 clients. Half the admin accounts share Welcome2024!. You've been waiting for exactly this moment. Password spray, get admin, push ransomware through their own management tools.",
+    soc: "2 AM. Your EDR dashboard is grey. 'Service degradation' the vendor says. You have zero endpoint visibility. If something happens in the next 4 hours, you won't see it. What contingency do you activate when your primary detection goes dark?",
+    blue: "The EDR is coming back online and the first thing it shows is devastating: ransomware staged across multiple client environments. Someone got in during the blind spot and used your own admin tools. Do you shut down the RMM console or try to push a kill command through it?",
+  },
+};
+
+function Landing({ meta, scenarioId, onLaunch, onBack }: { meta: any; scenarioId: string; onLaunch: (n: string, r: string) => void; onBack: () => void }) {
   const [name, setName] = useState(localStorage.getItem("gc_live_name") || "");
   const [role, setRole] = useState("red");
+  const narratives = ROLE_NARRATIVES[scenarioId] || ROLE_NARRATIVES["scn-wannacry-w1"];
+  const narrative = narratives[role] || narratives.red;
+
   return (
     <div style={{ maxWidth: 720, margin: "48px auto", padding: 24, color: "var(--gc-text)" }}>
       <button className="btn" onClick={onBack} style={{ marginBottom: 16 }}><i className="fa fa-arrow-left" /> Live</button>
       <div style={{ border: "1px solid var(--gc-border)", borderRadius: 12, padding: 20, background: "#fff", marginBottom: 18 }}>
-        <div style={{ fontSize: 11, letterSpacing: 1, color: "#f59e0b" }}>W1 INCIDENT OPERATOR CONSOLE</div>
+        <div style={{ fontSize: 11, letterSpacing: 1, color: "#f59e0b" }}>INCIDENT OPERATOR CONSOLE</div>
         <h1 style={{ margin: "6px 0" }}>{meta?.name ?? "Operation Tripwire"}</h1>
         <div style={{ color: "var(--gc-muted)", fontSize: 13, lineHeight: 1.7 }}>
           Patient Zero: <b style={{ color: "#b45309" }}>FIN-WS-014</b> · State: <b style={{ color: "#ef4444" }}>Infected</b><br />
           {meta?.summary}
         </div>
       </div>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Pick your seat <span style={{ color: "var(--gc-muted)", fontWeight: 400 }}>— take your time; the other seats stay idle until you turn on Auto-defense (top bar) or teammates join</span></div>
+
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>Pick your seat</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-        {["red", "blue", "soc"].map((k) => {
+        {["red", "soc", "blue"].map((k) => {
           const m = TEAM_META[k];
           return (
             <div key={k} onClick={() => setRole(k)} style={{ cursor: "pointer", border: `2px solid ${role === k ? m.color : "#33415544"}`,
-              borderRadius: 12, padding: 14, background: role === k ? `${m.color}14` : "transparent" }}>
+              borderRadius: 12, padding: 14, background: role === k ? `${m.color}14` : "transparent", transition: "all 0.2s" }}>
               <div style={{ color: m.color, fontWeight: 700 }}><i className={`fa ${m.icon}`} /> {m.label}</div>
               <div style={{ fontSize: 12, color: "var(--gc-muted)", marginTop: 4 }}>{m.blurb}</div>
             </div>
           );
         })}
       </div>
+
+      {/* Narrative that changes per role */}
+      <div key={role} style={{ marginTop: 16, padding: 16, borderRadius: 12, background: "var(--gc-soft)",
+        borderLeft: `3px solid ${TEAM_META[role]?.color || "var(--gc-primary)"}`,
+        fontSize: 13.5, lineHeight: 1.8, color: "var(--gc-text2)",
+        animation: "jillaBubbleIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
+        {narrative}
+      </div>
+
       <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
         <input className="form-input" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} style={{ flex: 1 }} />
         <button className="btn btn-primary" onClick={() => onLaunch(name, role)}><i className="fa fa-play" /> Enter the range</button>

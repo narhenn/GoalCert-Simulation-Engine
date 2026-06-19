@@ -152,17 +152,15 @@
    Incident Ticker — CNN-style breaking news
    =============================================== */
 .incident-ticker {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 80;
-  display: flex; height: 28px; overflow: hidden;
-  background: rgba(29,21,48,0.95); border-bottom: 2px solid var(--gc-primary);
-  backdrop-filter: blur(8px);
+  display: flex; height: 26px; overflow: hidden; flex-shrink: 0;
+  background: var(--gc-soft); border-bottom: 1px solid var(--gc-border);
   animation: jillaFadeIn 0.5s ease;
 }
-.incident-ticker.breaking { border-bottom-color: var(--gc-red); }
+.incident-ticker.breaking { border-bottom-color: var(--gc-red); background: #fef2f2; }
 .incident-ticker.breaking .ticker-label { background: var(--gc-red); }
 .ticker-label {
-  padding: 0 14px; background: var(--gc-primary); color: #fff;
-  font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
+  padding: 0 12px; background: var(--gc-primary); color: #fff;
+  font-size: 9px; font-weight: 800; letter-spacing: 1.5px;
   display: flex; align-items: center; flex-shrink: 0;
   text-transform: uppercase;
 }
@@ -174,8 +172,8 @@
 @keyframes ticker-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 .ticker-item {
   display: inline-flex; align-items: center; gap: 8px;
-  padding: 0 24px; color: rgba(255,255,255,0.85); font-size: 11.5px;
-  height: 28px; font-weight: 500;
+  padding: 0 24px; color: var(--gc-text2); font-size: 11px;
+  height: 26px; font-weight: 500;
 }
 .ticker-bullet {
   width: 5px; height: 5px; border-radius: 50%;
@@ -458,6 +456,264 @@
 @keyframes jillaDrawerIn {
   from { transform: translateX(100%); }
   to   { transform: none; }
+}
+
+/* ===============================================
+   Spotlight Guide — point at things on screen
+   =============================================== */
+.spotlight-overlay { position: fixed; inset: 0; z-index: 9300; cursor: pointer; }
+.spotlight-ring { animation: spotlightPulse 2s ease infinite; }
+.spotlight-ring-outer { animation: spotlightPulse 2s ease infinite 0.3s; }
+@keyframes spotlightPulse {
+  0%, 100% { opacity: 0.6; stroke-width: 2; }
+  50% { opacity: 1; stroke-width: 3; }
+}
+.spotlight-card {
+  width: 320px; pointer-events: auto;
+  animation: jillaSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.spotlight-arrow {
+  width: 12px; height: 12px; margin-left: 24px;
+  background: #fff; transform: rotate(45deg);
+  margin-bottom: -6px; position: relative; z-index: 1;
+  border: 1px solid var(--gc-border);
+  border-bottom: none; border-right: none;
+}
+.spotlight-card-inner {
+  background: #fff; color: var(--gc-text); border-radius: 12px;
+  padding: 14px 16px; position: relative; z-index: 2;
+  border: 1px solid var(--gc-border);
+  border-left: 3px solid var(--gc-primary);
+  box-shadow: 0 12px 40px rgba(73,2,162,0.12);
+}
+.spotlight-label { font-size: 14px; font-weight: 700; color: var(--gc-text); margin-bottom: 4px; }
+.spotlight-sublabel { font-size: 12px; color: var(--gc-text2); line-height: 1.6; margin-bottom: 8px; }
+.spotlight-hint { font-size: 10px; color: var(--gc-muted); }
+
+/* ===============================================
+   Attack Timeline — kill chain progress bar
+   =============================================== */
+.atk-timeline {
+  position: relative; margin: 0 12px;
+  background: #fff; border-radius: 0 0 8px 8px;
+  border: 1px solid var(--gc-border); border-top: none;
+  padding: 6px 16px 18px; flex-shrink: 0;
+}
+.atk-timeline-track {
+  height: 4px; background: var(--gc-border); border-radius: 2px;
+  overflow: hidden; margin-bottom: 8px;
+}
+.atk-timeline-fill {
+  height: 100%; border-radius: 2px;
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.atk-timeline-phases {
+  display: flex; justify-content: space-between;
+}
+.atk-phase {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  flex: 1; min-width: 0;
+}
+.atk-phase-dot {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--gc-soft); border: 2px solid var(--phase-color);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 700; color: var(--phase-color);
+  transition: all 0.3s;
+}
+.atk-phase.active .atk-phase-dot {
+  background: var(--phase-color); color: #fff;
+  box-shadow: 0 0 12px var(--phase-color);
+  animation: spotlightPulse 2s ease infinite;
+}
+.atk-phase.done .atk-phase-dot { background: var(--phase-color); color: #fff; }
+.atk-phase-name {
+  font-size: 8px; color: var(--phase-color); text-align: center;
+  max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  letter-spacing: 0.3px; font-weight: 600;
+}
+.atk-timeline-marker {
+  position: absolute; bottom: 2px;
+  transform: translateX(-50%);
+  transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.atk-timeline-marker span {
+  font-size: 7px; letter-spacing: 1px; font-weight: 800;
+  color: #fff; background: var(--gc-primary); padding: 1px 6px;
+  border-radius: 4px; white-space: nowrap;
+}
+
+/* ===============================================
+   Command Breakdown — interactive flag tooltips
+   =============================================== */
+.cmd-breakdown {
+  background: #0b1220; border-radius: 10px; border: 1px solid #1e2740;
+  overflow: hidden; animation: jillaBubbleIn 0.3s ease both;
+}
+.cmd-breakdown-code {
+  padding: 10px 14px; font-family: ui-monospace, monospace;
+  font-size: 12.5px; display: flex; flex-wrap: wrap;
+  align-items: center; position: relative;
+}
+.cmd-part {
+  position: relative; cursor: help; padding: 1px 0;
+  border-bottom: 1px dashed transparent;
+  transition: all 0.15s;
+}
+.cmd-part.hovered { border-bottom-color: currentColor; }
+.cmd-tooltip {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: #fff; color: var(--gc-text); padding: 6px 10px; border-radius: 8px;
+  border: 1px solid var(--gc-border);
+  font-size: 10.5px; font-family: system-ui, sans-serif; white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(73,2,162,0.12); z-index: 100;
+  animation: jillaFadeIn 0.15s ease;
+  pointer-events: none;
+}
+.cmd-tooltip::after {
+  content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #fff;
+}
+.cmd-copy {
+  margin-left: auto; background: rgba(255,255,255,0.06); border: none;
+  color: #64748b; cursor: pointer; border-radius: 5px; padding: 3px 8px;
+  font-size: 10px; transition: all 0.15s;
+}
+.cmd-copy:hover { background: rgba(255,255,255,0.12); color: #94a3b8; }
+.cmd-legend {
+  display: flex; gap: 12px; padding: 6px 14px;
+  border-top: 1px solid #1e2740; font-size: 9px; color: #64748b;
+}
+.cmd-legend span { display: flex; align-items: center; gap: 4px; }
+.cmd-legend-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+/* ===============================================
+   Jilla Toast — slide-in action notification
+   =============================================== */
+.jilla-toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  z-index: 9100; display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; min-width: 340px; max-width: 600px;
+  background: rgba(255,255,255,0.96); backdrop-filter: blur(16px);
+  border-radius: 12px; border-left: 4px solid var(--gc-primary);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  animation: jillaSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.jilla-toast-text { flex: 1; font-size: 13px; color: var(--gc-text); line-height: 1.5; }
+.jilla-toast-text strong { font-weight: 700; }
+.jilla-toast-action {
+  font-size: 11px; padding: 5px 12px; border-radius: 8px;
+  background: transparent; border: 1.5px solid var(--gc-primary);
+  color: var(--gc-primary); cursor: pointer; font-weight: 600;
+  white-space: nowrap; transition: all 0.15s;
+}
+.jilla-toast-action:hover { background: var(--gc-primary); color: #fff; }
+.jilla-toast-close {
+  background: none; border: none; color: var(--gc-muted); cursor: pointer;
+  font-size: 12px; padding: 2px;
+}
+
+/* ===============================================
+   Scenario Intro — cinematic story briefing
+   =============================================== */
+.intro-screen {
+  min-height: 100vh; width: 100%;
+  background: linear-gradient(135deg, #0a0618 0%, #1a1035 40%, #0d1b2a 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; cursor: default;
+  color: rgba(255,255,255,0.9);
+}
+.intro-scanlines {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.025;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.08) 2px, rgba(255,255,255,0.08) 3px);
+}
+.intro-back {
+  position: absolute; top: 20px; left: 20px; z-index: 10;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.5); border-radius: 8px; padding: 6px 14px;
+  font-size: 12px; cursor: pointer; transition: all 0.2s;
+}
+.intro-back:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.intro-content {
+  max-width: 640px; width: 100%; padding: 40px 24px; position: relative; z-index: 2;
+}
+.intro-date {
+  font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.35);
+  font-family: var(--mono); margin-bottom: 12px;
+  animation: jillaFadeIn 0.8s ease both;
+}
+.intro-headline {
+  font-size: 42px; font-weight: 800; letter-spacing: 2px;
+  margin: 0 0 8px; line-height: 1.1;
+  background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: phase-title 1s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
+}
+.intro-subtitle {
+  font-size: 14px; color: rgba(255,255,255,0.45); margin-bottom: 32px;
+  animation: jillaFadeIn 0.8s ease 0.5s both;
+}
+.intro-story { display: flex; flex-direction: column; gap: 0; }
+.intro-para {
+  font-size: 14.5px; line-height: 1.8; color: rgba(255,255,255,0.75);
+  margin: 0 0 16px; opacity: 0; transform: translateY(12px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.intro-para.visible { opacity: 1; transform: none; }
+.intro-skip {
+  text-align: center; font-size: 11px; color: rgba(255,255,255,0.2);
+  margin-top: 24px; letter-spacing: 1px;
+  animation: jillaFadeIn 1s ease 3s both;
+}
+.intro-launch {
+  margin-top: 32px; animation: jillaSlideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.intro-section-label {
+  font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,0.3);
+  margin-bottom: 12px; font-weight: 700;
+}
+.intro-roles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.intro-role {
+  background: rgba(255,255,255,0.03); border: 1.5px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 14px; cursor: pointer; text-align: left;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: rgba(255,255,255,0.7);
+}
+.intro-role:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); transform: translateY(-2px); }
+.intro-role.selected {
+  background: rgba(73,2,162,0.15); border-color: var(--role-color, var(--gc-primary));
+  box-shadow: 0 0 20px rgba(73,2,162,0.15);
+}
+.intro-role-icon { font-size: 18px; margin-bottom: 8px; color: var(--role-color, rgba(255,255,255,0.5)); }
+.intro-role-name { font-size: 13px; font-weight: 700; color: var(--role-color, #fff); margin-bottom: 4px; }
+.intro-role-desc { font-size: 11px; line-height: 1.5; color: rgba(255,255,255,0.45); }
+.intro-name-row { display: flex; gap: 10px; margin-top: 8px; }
+.intro-name-input {
+  flex: 1; padding: 12px 16px; border-radius: 10px;
+  background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,255,255,0.1);
+  color: #fff; font-size: 14px; outline: none; transition: all 0.2s;
+}
+.intro-name-input::placeholder { color: rgba(255,255,255,0.25); }
+.intro-name-input:focus { border-color: var(--gc-primary); background: rgba(255,255,255,0.08); }
+.intro-start-btn {
+  padding: 12px 28px; border-radius: 10px; border: none;
+  background: linear-gradient(135deg, #4902A2 0%, #7c3aed 100%);
+  color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+  letter-spacing: 0.5px; white-space: nowrap;
+  box-shadow: 0 6px 24px rgba(73,2,162,0.35);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.intro-start-btn:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 10px 32px rgba(73,2,162,0.45); }
+.intro-start-btn:active { transform: scale(0.97); }
+.intro-jilla-tag {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; color: rgba(255,255,255,0.2); letter-spacing: 1px;
+  display: flex; align-items: center; gap: 6px;
+}
+.intro-jilla-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--gc-primary); animation: jillaGlow 3s ease infinite;
 }
 @keyframes jillaBubbleIn {
   0%   { opacity: 0; transform: translateY(8px) scale(0.92); }
@@ -933,14 +1189,16 @@
    Jilla Conversation Panel — the core experience
    =============================================== */
 .jilla-convo-panel {
-  position: fixed; top: 28px; right: 0; bottom: 0; z-index: 90;
-  width: 380px; display: flex; flex-direction: column;
-  background: rgba(255,255,255,0.96);
+  position: fixed; bottom: 20px; right: 20px; z-index: 9100;
+  width: 360px; max-height: 520px;
+  display: flex; flex-direction: column;
+  background: rgba(255,255,255,0.97);
   backdrop-filter: blur(24px) saturate(1.4);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  border-left: 1px solid rgba(232,227,244,0.7);
-  box-shadow: -8px 0 32px rgba(73,2,162,0.06);
-  animation: jillaSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 1px solid var(--gc-border);
+  border-radius: 16px; overflow: hidden;
+  box-shadow: 0 16px 48px rgba(73,2,162,0.12);
+  animation: jillaSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 @keyframes jillaSlideIn {
   from { opacity: 0; transform: translateX(40px); }

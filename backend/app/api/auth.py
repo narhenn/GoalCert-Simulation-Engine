@@ -26,14 +26,17 @@ def _hash_pw(pw: str) -> str:
     return hashlib.sha256((settings.auth_secret + ":" + pw).encode()).hexdigest()
 
 
-# Seeded demo operator. password is stored only as a salted hash.
-DEMO_USER = {
-    "email": settings.demo_email,
-    "name": "Austin Robertson",
-    "role": "Admin",
-    "password_hash": _hash_pw(settings.demo_password),
+# Seeded accounts — admin + 3 client demo logins.
+_ACCOUNTS = [
+    {"email": settings.demo_email, "name": "Austin Robertson", "role": "Admin", "pw": settings.demo_password},
+    {"email": "admin1@goalcert.io", "name": "Admin 1", "role": "Admin", "pw": "GC_Admin1!2026"},
+    {"email": "admin2@goalcert.io", "name": "Admin 2", "role": "Admin", "pw": "GC_Admin2!2026"},
+    {"email": "admin3@goalcert.io", "name": "Admin 3", "role": "Admin", "pw": "GC_Admin3!2026"},
+]
+USERS: dict[str, dict] = {
+    a["email"].lower(): {"email": a["email"], "name": a["name"], "role": a["role"], "password_hash": _hash_pw(a["pw"])}
+    for a in _ACCOUNTS
 }
-USERS: dict[str, dict] = {DEMO_USER["email"].lower(): DEMO_USER}
 
 
 def _b64(data: bytes) -> str:
