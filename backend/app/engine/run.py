@@ -45,12 +45,26 @@ RED_STAGE = {
 }
 PERSISTENCE_TECHNIQUES = {"persistence_task", "cloud_persistence"}
 IMPACT_TECHNIQUES = {"ransomware", "ot_plc_modify"}
+# Materially significant attacker successes that pull leadership in *regardless* of SOC maturity — a
+# ransomware detonation / domain-admin compromise / OT impact / bulk exfil is a business-level event,
+# so Management engages even if the SOC never escalated it (previously mgmt only fired via SOC triage).
+MATERIAL_TECHNIQUES = {"ransomware", "ot_plc_modify", "dcsync_domain_admin", "exfiltration"}
+
+
+# A role that matches nothing falls back to the same value as a type, then a known role→type mapping,
+# so custom Builder scenarios (which may target arbitrary role names) still resolve a target.
+_ROLE_TYPE_FALLBACK = {
+    "primary_endpoint": "endpoint", "sensitive_share": "file_share", "crown_jewel": "erp",
+    "mail_gateway": "email_server", "ot_boundary": "mes", "plc": "ot_plc",
+}
 
 
 def _select_target(world: World, sel: TargetSelector | None) -> AssetInstance | None:
     if sel is None:
         return None
     matches = world.by_role(sel.value) if sel.by == "role" else world.by_type(sel.value)
+    if not matches and sel.by == "role":
+        matches = world.by_type(sel.value) or world.by_type(_ROLE_TYPE_FALLBACK.get(sel.value, ""))
     return matches[0] if matches else None
 
 
@@ -186,6 +200,8 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
 
     # ---- accumulators -------------------------------------------------------
     attempts = successes = blocked = detected = contained = 0
+    ever_foothold = False          # high-water mark: Red held a foothold at some point (survives containment)
+    ever_compromised = 0           # peak number of assets Red compromised (objectives read the peak, not final state)
     dwells: list[int] = []
     mtta: list[int] = []
     mttc: list[int] = []
@@ -338,6 +354,10 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                 successes += 1
                 scores["red"] += spec.score.red_success
                 affected = R.apply_effects(spec, world, target)
+                if world.attacker.has_foothold():
+                    ever_foothold = True
+                ever_compromised = max(ever_compromised, sum(
+                    1 for x in world.all_assets() if x.security_state == SecurityState.COMPROMISED))
                 # Blue recovery (tested backups) mitigates impact: down -> degraded
                 if posture.recovery and spec.key in IMPACT_TECHNIQUES and target is not None \
                         and target.health.value == "down":
@@ -380,6 +400,9 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
                 if world.attacker.flags.get("in_ot") and "ot" in workflows:
                     push(t + config.latency(OT_OPS_BASE), "ot_ops",
                          {"kind": "ot_ops", "phase": phase, "target_id": target.id if target else None})
+                # Material impact pulls leadership in even if the SOC never escalated it.
+                if spec.key in MATERIAL_TECHNIQUES:
+                    schedule_mgmt(t, _p_level(spec, target), phase)
                 score_event(t)
 
         elif kind == "reestablish":
@@ -664,7 +687,9 @@ def run(scenario: Scenario, env: EnvironmentSpec, config: RunConfig) -> RunResul
         scores["blue"] += 40 if posture.recovery else 0
 
     milestones = {
-        "foothold": a.has_foothold() or any(x.security_state == SecurityState.COMPROMISED for x in final_assets),
+        # high-water mark: Red "gained a foothold" if it ever held one, even if Blue later contained it
+        "foothold": ever_foothold or ever_compromised > 0 or a.has_foothold()
+                    or any(x.security_state == SecurityState.COMPROMISED for x in final_assets),
         "privilege": a.cred_scope.rank >= 2, "domain_admin": a.cred_scope.rank >= 3,
         "persistence": bool(a.flags.get("persistence") or a.flags.get("cloud_persistence")),
         "exfil": bool(a.flags.get("exfiltrated")), "ransomware": bool(a.flags.get("ransomware")),

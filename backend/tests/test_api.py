@@ -32,6 +32,23 @@ def test_scenarios_seeded(client):
     assert len(topo["controls"]) == 8
 
 
+def test_create_and_delete_custom_scenario(client):
+    payload = {
+        "id": "test_delete_me", "name": "Delete Me", "type": "purple",
+        "recommended_topology": {"assets": [], "controls": []},
+    }
+    assert client.post("/api/scenarios", json=payload).status_code == 201
+    assert "test_delete_me" in {s["id"] for s in client.get("/api/scenarios").json()}
+
+    r = client.request("DELETE", "/api/scenarios/test_delete_me")
+    assert r.status_code == 200 and r.json()["deleted"] is True
+    assert "test_delete_me" not in {s["id"] for s in client.get("/api/scenarios").json()}
+
+    # deleting again is a 404; seed scenarios are protected (403)
+    assert client.request("DELETE", "/api/scenarios/test_delete_me").status_code == 404
+    assert client.request("DELETE", "/api/scenarios/operation_black_phoenix").status_code == 403
+
+
 def test_launch_run_strong_vs_weak_and_report(client):
     # Strong posture (Easy, all controls on)
     strong = client.post("/api/runs", json={

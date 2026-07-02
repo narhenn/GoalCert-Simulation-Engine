@@ -35,6 +35,12 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   if (!r.ok) throw new Error(`${r.status} ${url}: ${await r.text()}`);
   return r.json();
 }
+async function del<T>(url: string): Promise<T> {
+  const r = await fetch(url, { method: "DELETE", headers: authHeaders() });
+  if (r.status === 401) { on401(); throw new Error("unauthenticated"); }
+  if (!r.ok) throw new Error(`${r.status} ${url}: ${await r.text()}`);
+  return r.json();
+}
 
 export interface AuthUser { email: string; name: string; role: string }
 
@@ -53,6 +59,7 @@ export const api = {
   scenarios: () => get<ScenarioSummary[]>("/api/scenarios"),
   scenario: (id: string) => get<any>(`/api/scenarios/${id}`),
   topology: (id: string) => get<Topology>(`/api/scenarios/${id}/topology`),
+  deleteScenario: (id: string) => del<{ id: string; deleted: boolean }>(`/api/scenarios/${id}`),
 
   launch: (body: { scenario_id: string; environment_spec?: Topology; config?: RunConfig; operator?: string }) =>
     post<RunSummary>("/api/runs", body),

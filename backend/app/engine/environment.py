@@ -78,8 +78,39 @@ def _build_asset(spec: AssetSpec) -> AssetInstance:
     )
 
 
+# Default semantic roles. Composer/Builder environments usually set only `type`, but playbook steps
+# target ROLES like "primary_endpoint" / "sensitive_share". Give each role-less asset a sensible role
+# so role-targeted attack steps resolve instead of failing with "no_target" (which otherwise collapses
+# the whole kill chain at step 1). The first asset of a role-bearing type claims the primary role; any
+# extra assets of that type fall back to a role equal to their type.
+_TYPE_DEFAULT_ROLE: dict[str, str] = {
+    "endpoint": "primary_endpoint",
+    "file_share": "sensitive_share",
+    "domain_controller": "domain_controller",
+    "erp": "crown_jewel",
+    "cloud": "cloud",
+    "email_server": "mail_gateway",
+    "mes": "ot_boundary",
+    "ot_plc": "plc",
+}
+
+
+def _assign_default_roles(assets: list[AssetInstance]) -> None:
+    claimed = {a.role for a in assets if a.role}
+    for a in assets:  # spec order — deterministic; the first candidate claims the semantic role
+        if a.role:
+            continue
+        dr = _TYPE_DEFAULT_ROLE.get(a.type_key)
+        if dr and dr not in claimed:
+            a.role = dr
+            claimed.add(dr)
+        else:
+            a.role = a.type_key  # fallback: role == type so type/role targeting both work
+
+
 def build_world(env: EnvironmentSpec) -> World:
     assets = [_build_asset(a) for a in env.assets]
+    _assign_default_roles(assets)
     asset_by_id = {a.id: a for a in assets}
 
     controls: list[ControlInstance] = []

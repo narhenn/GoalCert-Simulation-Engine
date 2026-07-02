@@ -49,6 +49,19 @@ def get_topology(scenario_id: str, db: Session = Depends(get_session)) -> dict:
     return row.definition.get("recommended_topology", {"assets": [], "controls": []})
 
 
+@router.delete("/{scenario_id}", status_code=200)
+def delete_scenario(scenario_id: str, db: Session = Depends(get_session)) -> dict:
+    """Delete a custom (non-seed) scenario from the library. Seed scenarios are protected."""
+    row = db.get(ScenarioRow, scenario_id)
+    if row is None:
+        raise HTTPException(404, "scenario not found")
+    if row.is_seed:
+        raise HTTPException(403, "seed scenarios cannot be deleted")
+    db.delete(row)
+    db.commit()
+    return {"id": scenario_id, "deleted": True}
+
+
 @router.post("", status_code=201)
 def create_scenario(scenario: Scenario, db: Session = Depends(get_session)) -> dict:
     """Builder endpoint — validate a custom scenario against the schema and store it."""

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { ScenarioSummary } from "../api/types";
@@ -43,10 +43,25 @@ const EDU_SCENARIOS = [
 
 export default function Library() {
   const nav = useNavigate();
+  const qc = useQueryClient();
   const [filter, setFilter] = useState("all");
+  const [deleting, setDeleting] = useState<string | null>(null);
   const { data, isLoading } = useQuery<ScenarioSummary[]>({ queryKey: ["scenarios"], queryFn: api.scenarios });
 
   const scenarios = (data ?? []).filter((s) => filter === "all" || s.type === filter || s.industry === filter);
+
+  const removeScenario = async (s: ScenarioSummary) => {
+    if (!confirm(`Delete scenario "${s.name}"? This cannot be undone.`)) return;
+    setDeleting(s.id);
+    try {
+      await api.deleteScenario(s.id);
+      await qc.invalidateQueries({ queryKey: ["scenarios"] });
+    } catch (e) {
+      alert("Delete failed: " + e);
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   return (
     <>
@@ -126,6 +141,16 @@ export default function Library() {
                 onClick={(e) => { e.stopPropagation(); nav(`/builder?clone=${s.id}`); }}>
                 <i className="fa fa-copy" /> Clone
               </button>
+              {!s.is_seed && (
+                <button className="btn btn-ghost" style={{ fontSize: 10, padding: "4px 10px", color: "var(--gc-red)" }}
+                  disabled={deleting === s.id}
+                  title="Delete this custom scenario"
+                  onClick={(e) => { e.stopPropagation(); removeScenario(s); }}>
+                  {deleting === s.id
+                    ? <><span className="spinner" /> Deleting…</>
+                    : <><i className="fa fa-trash" /> Delete</>}
+                </button>
+              )}
             </div>
           </div>
         ))}

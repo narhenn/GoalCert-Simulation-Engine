@@ -223,3 +223,69 @@ def test_workflow_config_filters_tasks_and_is_deterministic():
     blue_wf = next(w for w in r1.workflows if w["actor"] == "blue")
     assert {st["id"] for st in blue_wf["steps"]} == {"blue.identify", "blue.edr_contain", "blue.lessons"}
     assert {t["id"] for t in r1.role_tasks["blue"]} == {"blue.identify", "blue.edr_contain", "blue.lessons"}
+
+
+# --------------------------------------------------------------------------- #
+#  Builder-created scenarios (role-less assets) must run the whole kill chain
+#  and engage EVERY team — regression for the "only Blue scores" bug where
+#  role-targeted steps (primary_endpoint / sensitive_share) failed with no_target.
+# --------------------------------------------------------------------------- #
+def _builder_scenario() -> Scenario:
+    """A scenario shaped exactly like the frontend Builder saves it: assets carry only a `type`
+    (NO role), and the playbook targets roles like primary_endpoint / sensitive_share."""
+    types = ["endpoint", "domain_controller", "email_server", "file_share", "erp",
+             "mes", "ot_plc", "cloud", "siem_platform", "edr_platform", "firewall"]
+    steps = [
+        ("recon_osint", "Reconnaissance", 1, "type", ""),
+        ("phishing", "Initial Compromise", 4, "role", "primary_endpoint"),
+        ("c2_beacon", "Initial Compromise", 6, "role", "primary_endpoint"),
+        ("credential_dump", "Privilege Escalation", 9, "role", "primary_endpoint"),
+        ("dcsync_domain_admin", "Privilege Escalation", 14, "type", "domain_controller"),
+        ("lateral_movement", "Lateral Movement", 17, "role", "sensitive_share"),
+        ("collection_staging", "Data Exfiltration", 24, "role", "sensitive_share"),
+        ("exfiltration", "Data Exfiltration", 30, "role", "sensitive_share"),
+        ("ransomware", "Ransomware", 40, "type", "erp"),
+        ("ot_pivot", "OT Attack", 48, "type", "mes"),
+        ("ot_plc_modify", "OT Attack", 54, "type", "ot_plc"),
+    ]
+    return Scenario.model_validate({
+        "schema_version": 1, "id": "builder_regression", "name": "Builder Regression",
+        "type": "purple", "industry": "generic", "nominal_duration_min": 90,
+        "phases": ["Reconnaissance", "Initial Compromise", "Privilege Escalation",
+                   "Lateral Movement", "Data Exfiltration", "Ransomware", "OT Attack"],
+        "recommended_topology": {
+            "assets": [{"id": f"{t}-1", "type": t, "name": t} for t in types],  # NO role
+            "controls": [{"id": f"c-{c}", "type": c, "enabled": True} for c in ("edr", "siem", "firewall_ids")],
+        },
+        "playbook": [{"id": f"s{i}", "technique": tc, "phase": ph, "at_min": at,
+                      "target": {"by": by, "value": v} if v else None}
+                     for i, (tc, ph, at, by, v) in enumerate(steps)],
+        "objectives": {"red": ["Gain foothold", "Domain admin", "Exfiltrate", "Ransomware", "OT impact"],
+                       "blue": ["Detect", "Contain", "Recover"]},
+    })
+
+
+def test_builder_scenario_runs_full_chain_all_teams_engage():
+    """Weak defence: Red should progress the whole chain and Mgmt + OT must engage (not stay at 0)."""
+    s = _builder_scenario()
+    r = run(s, s.recommended_topology,
+            RunConfig(difficulty=Difficulty.EXPERT, readiness=10,
+                      workflow_config=_wc(blue=[], soc=[])))
+    # Red actually lands attacks (previously every role-targeted step failed with no_target)
+    assert r.summary["succeeded"] >= 6
+    assert r.summary["ransomware"] and r.summary["exfiltrated"] and r.summary["ot_impact"]
+    # Management is pulled in by the material impact even with SOC disabled; OT switches to manual ops
+    assert r.scores["mgmt"] > 0
+    assert r.scores["ot"] > 0
+    # Red objectives read from the peak (foothold survives being reported even if later contained)
+    assert all(o.met for o in r.objectives["red"])
+
+
+def test_builder_scenario_early_containment_beats_red():
+    """Strong defence: Blue contains early, stops the chain, and outscores Red."""
+    s = _builder_scenario()
+    r = run(s, s.recommended_topology, RunConfig(difficulty=Difficulty.MEDIUM, readiness=75))
+    assert r.scores["blue"] > 0 and r.scores["soc"] > 0
+    assert r.summary["contained"] >= 1
+    assert r.scores["blue"] >= r.scores["red"]      # early containment wins
+    assert not r.summary["ransomware"]              # Red never detonated
