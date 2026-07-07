@@ -116,8 +116,5 @@ export const api = {
     post<{ beats: any[] }>("/api/studio/training/director", { procedure }),
   studioCoach: (body: { messages: { role: string; content: string }[]; context: Record<string, any> }) =>
     post<{ reply: string }>("/api/studio/training/coach", body),
-  studioSettings: () => get<StudioSettings>("/api/studio/settings"),
-  studioSaveSettings: (body: { api_key?: string; model?: string }) =>
-    post<StudioSettings>("/api/studio/settings", body),
-  studioClearKey: () => del<StudioSettings>("/api/studio/settings/key"),
+  studioSettings: () => get<StudioSettings>("/api/studio/settings"),   // read-only AI status
 };

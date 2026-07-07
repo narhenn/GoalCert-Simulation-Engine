@@ -84,16 +84,17 @@ def test_training_procedure_and_authoritative_grade(client):
     assert gb["complete"] is False
 
 
-def test_settings_key_masked_and_toggles_mode(client):
-    # no key → stub mode
+def test_ai_status_is_read_only_from_env(client, monkeypatch):
+    # no env key → stub mode, no key exposed
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     st = client.get("/api/studio/settings").json()
-    assert st["ai_mode"] in ("stub", "agent")
+    assert st["ai_mode"] == "stub" and st["has_key"] is False and st["source"] == "none"
 
-    # set a key → agent mode, key never returned in full
-    st2 = client.post("/api/studio/settings", json={"api_key": "sk-ant-test-1234567890ABCD"}).json()
-    assert st2["has_key"] is True and st2["ai_mode"] == "agent"
+    # env key present → agent mode, key never returned in full (only a masked preview)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-1234567890ABCD")
+    st2 = client.get("/api/studio/settings").json()
+    assert st2["ai_mode"] == "agent" and st2["has_key"] is True and st2["source"] == "env"
     assert "1234567890ABCD" not in st2["masked_key"] and "…" in st2["masked_key"]
 
-    # clear it → back to stub (env may still provide one, so just assert the call works)
-    st3 = client.request("DELETE", "/api/studio/settings/key").json()
-    assert "has_key" in st3
+    # the key cannot be set from the API (no write endpoint)
+    assert client.post("/api/studio/settings", json={"api_key": "x"}).status_code == 405

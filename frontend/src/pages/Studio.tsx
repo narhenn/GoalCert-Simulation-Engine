@@ -77,7 +77,7 @@ export default function Studio() {
           <h1>Scenario Studio</h1>
           <p>Describe a what-if for <b>any sector</b> — the agent authors a runnable scenario, simulates the outcome, and scores it against objective KPIs. No physics engine required.</p>
         </div>
-        <AiBadge mode={settings?.ai_mode} onClick={() => nav("/studio/settings")} />
+        <AiBadge mode={settings?.ai_mode} />
       </div>
 
       <div className="grid-2" style={{ alignItems: "start", gap: 18 }}>
@@ -240,13 +240,14 @@ function Meter({ label, v }: { label: string; v: number }) {
   );
 }
 
-export function AiBadge({ mode, onClick }: { mode?: string; onClick?: () => void }) {
+export function AiBadge({ mode }: { mode?: string }) {
   const agent = mode === "agent";
   return (
-    <button className="btn btn-ghost" onClick={onClick} style={{ fontSize: 11.5 }}
-      title={agent ? "Claude connected" : "Add an Anthropic key for full AI"}>
+    <span style={{ fontSize: 11.5, padding: "5px 11px", borderRadius: 999, border: "1px solid var(--gc-border)", color: "var(--gc-text2)", whiteSpace: "nowrap" }}
+      title={agent ? "Claude connected via the ANTHROPIC_API_KEY environment variable on the server"
+                   : "Running on deterministic local stubs — set ANTHROPIC_API_KEY on the server for full Claude reasoning"}>
       <span style={{ width: 8, height: 8, borderRadius: "50%", background: agent ? "#22c55e" : "#94a3b8", display: "inline-block", marginRight: 6 }} />
-      {agent ? "AI: Claude" : "AI: local stub"} <i className="fa fa-gear" style={{ marginLeft: 6 }} />
-    </button>
+      {agent ? "AI: Claude" : "AI: local stub"}
+    </span>
   );
 }

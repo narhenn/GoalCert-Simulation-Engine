@@ -143,27 +143,9 @@ def training_coach(req: CoachReq, db: Session = Depends(get_session)) -> dict:
     return {"reply": service.coach(db, req.messages, req.context)}
 
 
-# ── Settings (Anthropic API key) ──────────────────────────────────────
+# ── AI status (read-only) ─────────────────────────────────────────────
+# The Anthropic key is configured on the SERVER via the ANTHROPIC_API_KEY env var (not the UI).
+# This endpoint only reports whether Claude is wired up so the frontend can show a status badge.
 @router.get("/settings")
-def get_settings(db: Session = Depends(get_session)) -> dict:
-    return settings_store.status(db)
-
-
-class SettingsReq(BaseModel):
-    api_key: str | None = None
-    model: str | None = None
-
-
-@router.post("/settings")
-def update_settings(req: SettingsReq, db: Session = Depends(get_session)) -> dict:
-    if req.api_key is not None:
-        settings_store.set_api_key(db, req.api_key)
-    if req.model:
-        settings_store.set_model(db, req.model)
-    return settings_store.status(db)
-
-
-@router.delete("/settings/key")
-def delete_key(db: Session = Depends(get_session)) -> dict:
-    settings_store.clear_api_key(db)
-    return settings_store.status(db)
+def ai_status() -> dict:
+    return settings_store.status()

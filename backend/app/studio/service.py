@@ -45,7 +45,7 @@ def get_spec(db: Session, scenario_id: str) -> ScenarioSpec | None:
 
 def author_and_save(db: Session, description: str, domain: str, kind: str,
                     horizon_min: float = 60.0, save: bool = True) -> dict:
-    cfg = get_config(db)
+    cfg = get_config()
     spec = ai.author_scenario(cfg, description, domain, kind, horizon_min)
     entry = None
     if save:
@@ -72,7 +72,7 @@ def delete_scenario(db: Session, scenario_id: str) -> bool:
 # ── Run (simulate + score) ────────────────────────────────────────────
 def run_scenario(db: Session, *, scenario_id: str | None = None,
                  spec: ScenarioSpec | None = None, analyze: bool = True) -> RunResult:
-    cfg = get_config(db)
+    cfg = get_config()
     if spec is None and scenario_id:
         spec = get_spec(db, scenario_id)
     if spec is None:
@@ -124,7 +124,7 @@ def list_runs(db: Session, limit: int = 25, domain: str | None = None) -> list[d
 # ── Training ───────────────────────────────────────────────────────────
 def build_procedure(db: Session, domain: str, system: str, fault: str,
                     title: str = "", context: str = "") -> Procedure:
-    return ai.build_procedure(get_config(db), domain, system, fault, title, context)
+    return ai.build_procedure(get_config(), domain, system, fault, title, context)
 
 
 def grade_training(procedure: Procedure, actions: list[TrainAction]) -> TrainingGrade:
@@ -132,8 +132,8 @@ def grade_training(procedure: Procedure, actions: list[TrainAction]) -> Training
 
 
 def coach(db: Session, messages: list[dict], context: dict) -> str:
-    return ai.coach_reply(get_config(db), messages, context)
+    return ai.coach_reply(get_config(), messages, context)
 
 
 def director(db: Session, procedure: Procedure) -> list[dict]:
-    return ai.director_beats(get_config(db), procedure)
+    return ai.director_beats(get_config(), procedure)
