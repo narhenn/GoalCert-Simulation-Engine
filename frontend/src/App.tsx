@@ -14,6 +14,10 @@ import Tripwire from "./pages/Tripwire";
 import GuidedRoom from "./pages/GuidedRoom";
 import ScenarioWorkspace from "./pages/ScenarioWorkspace";
 import HackLab from "./pages/HackLab";
+import Studio from "./pages/Studio";
+import StudioRun from "./pages/StudioRun";
+import StudioTrainer from "./pages/StudioTrainer";
+import StudioSettings from "./pages/StudioSettings";
 import Login from "./pages/Login";
 import { useAuth } from "./hooks/useAuth";
 
@@ -53,6 +57,10 @@ export default function App() {
         <Route path="/sim/:runId" element={<ActiveSim />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/builder" element={<Builder />} />
+        <Route path="/studio" element={<Studio />} />
+        <Route path="/studio/settings" element={<StudioSettings />} />
+        <Route path="/studio/train" element={<StudioTrainer />} />
+        <Route path="/studio/run/:runId" element={<StudioRun />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/reports/:runId" element={<Reports />} />

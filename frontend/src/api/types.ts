@@ -205,6 +205,47 @@ export interface LabToolRegistry {
   counts: Record<string, number>; tools: LabTool[]; by_status: Record<string, LabTool[]>;
 }
 
+// ---- Scenario Studio (LLM-driven, domain-agnostic what-if + training) ----
+export interface StudioDomain { id: string; label: string; icon: string; system: string; fault_count: number }
+export interface StudioFault { id: string; label: string }
+export interface StudioPreset { title: string; description: string }
+export interface StudioSpec {
+  name: string; domain: string; kind: string; system: string; fault: string;
+  severity: number; intensity: number; horizon_min: number; description: string;
+  rationale: string; expected_outcome: string; objectives: string[];
+}
+export interface StudioScenario {
+  id: string; name: string; domain: string; kind: string; description: string;
+  is_seed: boolean; spec: StudioSpec; created_at: string | null;
+}
+export interface StudioEvent { t_min: number; phase: string; title: string; detail: string; severity: string; actor: string }
+export interface StudioKpis {
+  outcome_band: string; detected: boolean; mttd_min: number; lead_time_min: number;
+  peak_severity_pct: number; downtime_min: number; affected_units: number;
+  mitigations_identified: number; readiness_score: number; grade: string;
+}
+export interface StudioRunResult {
+  id: string; scenario_id: string | null; name: string; domain: string; system: string;
+  status: string; duration_min: number; spec: StudioSpec; outcome_band: string; headline: string;
+  events: StudioEvent[]; metrics: Record<string, any>; detections: string[]; mitigations: string[];
+  risks: string[]; kpis: StudioKpis; narrative: string; ai_mode: string; created_at: string;
+}
+export interface StudioRunSummary { id: string; name: string; domain: string; outcome_band: string; readiness_score: number; grade: string; created_at: string }
+export interface StudioProcStep {
+  id: string; title: string; action: string; rationale: string; criteria: string;
+  safety: boolean; requires: string[]; skip_consequence: string; wrong_order_consequence: string;
+}
+export interface StudioProcedure {
+  title: string; fault: string; domain: string; system: string; summary: string;
+  steps: StudioProcStep[]; success_criteria: string; common_mistakes: string[];
+}
+export interface StudioGradeLog { step_id: string; ok: boolean; severe: boolean; skipped: boolean; text: string; health_after: number }
+export interface StudioGrade {
+  score: number; grade: string; health_pct: number; performed: number; total: number;
+  violations: number; skips: number; complete: boolean; log: StudioGradeLog[]; summary: string;
+}
+export interface StudioSettings { has_key: boolean; source: string; model: string; masked_key: string; ai_mode: string }
+
 export interface LiveSnapshot {
   type: "snapshot";
   session: { id: string; scenario_name: string; status: string; host_id: string; match_result: string | null; mission: string; mission_locked: boolean; live_fire: boolean };

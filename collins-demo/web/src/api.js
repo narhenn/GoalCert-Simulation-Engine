@@ -1,0 +1,91 @@
+// api.js — the only surface the web app talks to. Vite proxies /api -> orchestrator (:8090).
+const BASE = '/api'
+
+async function req(path, opts = {}) {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' }, ...opts,
+  })
+  if (!res.ok) {
+    let detail
+    try { detail = (await res.json()).detail } catch { detail = res.statusText }
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail))
+  }
+  return res.status === 204 ? null : res.json()
+}
+
+export const api = {
+  health: () => req('/health'),
+  build: (body) => req('/build', { method: 'POST', body: JSON.stringify(body) }),
+
+  // real-time turbine twin
+  twinState: (tenant) => req(`/twin/${tenant}/state`),
+  step: (body) => req('/twin/step', { method: 'POST', body: JSON.stringify(body) }),
+  setTwinRunning: (tenant, running) => req(`/twin/${tenant}/running`, { method: 'POST', body: JSON.stringify({ running }) }),
+
+  // scenario builder
+  scenarioLibrary: () => req('/scenarios/library'),
+  authorScenario: (body) => req('/scenarios/author', { method: 'POST', body: JSON.stringify(body) }),
+  runScenario: (body) => req('/scenarios/run', { method: 'POST', body: JSON.stringify(body) }),
+
+  // twin intelligence: analysis + diagnosis agents + prediction engine
+  horizons: () => req('/agents/horizons'),
+  diagnostics: (tenant) => req(`/twin/${tenant}/diagnostics`),
+  runDiagnosis: (body) => req('/agents/diagnosis', { method: 'POST', body: JSON.stringify(body) }),
+  runAnalysis: (body) => req('/agents/analysis', { method: 'POST', body: JSON.stringify(body) }),
+
+  // twins library: list domain templates + create any twin domain
+  twinTemplates: () => req('/twins/templates'),
+  createTwin: (body) => req('/twins/create', { method: 'POST', body: JSON.stringify(body) }),
+  twinFaults: (domain) => req(`/twins/faults?domain=${encodeURIComponent(domain || 'edm-machine')}`),
+  twinNetwork: (tenant) => req(`/twins/${encodeURIComponent(tenant)}/network`),
+  twinScenarios: (domain) => req(`/twins/scenarios?domain=${encodeURIComponent(domain || 'edm-machine')}`),
+  simAuthor: (body) => req('/agents/sim/author', { method: 'POST', body: JSON.stringify(body) }),
+  simRun: (body) => req('/agents/sim/run', { method: 'POST', body: JSON.stringify(body) }),
+  procedure: (body) => req('/agents/procedure', { method: 'POST', body: JSON.stringify(body) }),
+  scenarioChat: (body) => req('/agents/scenario-chat', { method: 'POST', body: JSON.stringify(body) }),
+  dashboardChat: (body) => req('/agents/dashboard-chat', { method: 'POST', body: JSON.stringify(body) }),
+
+  // AI co-pilot: narration, work orders, predictive alerts, cascade analysis
+  narrate: (tenant, machine) => req(`/agents/narrate/${tenant}?machine=${encodeURIComponent(machine || 'Turbine Engine')}`),
+  narrateSnapshot: (body) => req('/agents/narrate', { method: 'POST', body: JSON.stringify(body) }),
+  assetStatus: (body) => req('/agents/asset', { method: 'POST', body: JSON.stringify(body) }),
+  diagnoseSnapshot: (body) => req('/agents/diagnose-snapshot', { method: 'POST', body: JSON.stringify(body) }),
+  forecastSnapshot: (body) => req('/agents/forecast-snapshot', { method: 'POST', body: JSON.stringify(body) }),
+  workOrderSnapshot: (body) => req('/agents/work-order-snapshot', { method: 'POST', body: JSON.stringify(body) }),
+  cascadeSnapshot: (body) => req('/agents/cascade-snapshot', { method: 'POST', body: JSON.stringify(body) }),
+  workOrder: (body) => req('/agents/work-order', { method: 'POST', body: JSON.stringify(body) }),
+  predictAlert: (body) => req('/agents/predict-alert', { method: 'POST', body: JSON.stringify(body) }),
+  cascade: (body) => req('/agents/cascade', { method: 'POST', body: JSON.stringify(body) }),
+
+  // new agents: troubleshooting, procurement, incident report
+  troubleshoot: (body) => req('/agents/troubleshoot', { method: 'POST', body: JSON.stringify(body) }),
+  procurement: (body) => req('/agents/procurement', { method: 'POST', body: JSON.stringify(body) }),
+  incidentReport: (body) => req('/agents/incident-report', { method: 'POST', body: JSON.stringify(body) }),
+
+  // GoalCert training simulation
+  goalcertRun: (body) => req('/agents/goalcert/run', { method: 'POST', body: JSON.stringify(body) }),
+
+  // build a twin: conversational agent + Tripo/RunPod image->3D
+  buildTwinMessage: (body) => req('/build-twin/message', { method: 'POST', body: JSON.stringify(body) }),
+  buildTwinGenerate: (body) => req('/build-twin/generate', { method: 'POST', body: JSON.stringify(body) }),
+  buildTwinModel: (body) => req('/build-twin/model', { method: 'POST', body: JSON.stringify(body) }),
+  buildTwinCreate: (body) => req('/build-twin/create', { method: 'POST', body: JSON.stringify(body) }),
+  buildTwinStatus: (taskId) => req(`/build-twin/status/${taskId}`),
+  modelUrl: (tenant) => `/api/model/${tenant}.glb`,
+
+  // BIM: IFC → discipline layers → X-ray viewer
+  bimBuildings: () => req('/bim/buildings'),
+  bimSample: (id) => req(`/bim/sample/${encodeURIComponent(id)}`, { method: 'POST' }),
+  bimStatus: (bid) => req(`/bim/${encodeURIComponent(bid)}/status`),
+  bimFileJson: (bid, name) => req(`/bim/${encodeURIComponent(bid)}/file/${encodeURIComponent(name)}`),
+  bimFileUrl: (bid, name) => `/api/bim/${encodeURIComponent(bid)}/file/${encodeURIComponent(name)}`,
+  bimUpload: async (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch(`${BASE}/bim/upload`, { method: 'POST', body: fd })
+    if (!res.ok) throw new Error((await res.text()).slice(0, 200))
+    return res.json()
+  },
+}
+
+export default api

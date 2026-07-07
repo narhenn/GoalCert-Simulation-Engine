@@ -29,6 +29,7 @@ def get_session() -> Iterator[Session]:
 def init_db() -> None:
     """Create tables (idempotent) and seed catalog + scenarios."""
     from . import models  # noqa: F401  (register tables)
+    from app.studio import db as _studio_db  # noqa: F401  (register Scenario-Studio tables)
     from .seed import seed_all
 
     Base.metadata.create_all(bind=engine)

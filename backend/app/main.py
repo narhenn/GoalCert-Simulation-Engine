@@ -12,6 +12,8 @@ from fastapi.responses import FileResponse
 import app.engine  # noqa: F401  (populate asset/control/technique registries)
 from app.api import auth, catalog, dashboard, jilla, lab, live, runs, scenarios
 from app.tripwire.api import router as tripwire_router
+from app.studio.routes import router as studio_router
+from app.studio.ws import router as studio_ws
 from app.core.settings import settings
 from app.db.base import init_db
 from app.ws import live as ws_live
@@ -47,9 +49,11 @@ app.include_router(scenarios.router)
 app.include_router(runs.router)
 app.include_router(dashboard.router)
 app.include_router(live.router)
+app.include_router(studio_router)
 app.include_router(ws_runs.router)
 app.include_router(ws_live.router)
 app.include_router(ws_tripwire.router)
+app.include_router(studio_ws)
 
 
 @app.get("/api/health")

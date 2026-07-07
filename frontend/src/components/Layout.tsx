@@ -13,6 +13,10 @@ const NAV_SECTIONS: { label: string; items: { to: string; icon: string; label: s
     { to: "/catalog", icon: "fa-cubes", label: "Asset Catalog" },
     { to: "/builder", icon: "fa-wand-magic-sparkles", label: "Scenario Builder" },
   ]},
+  { label: "Scenario Studio", items: [
+    { to: "/studio", icon: "fa-flask-vial", label: "Studio" },
+    { to: "/studio/settings", icon: "fa-key", label: "AI Settings" },
+  ]},
   { label: "Insights", items: [
     { to: "/leaderboard", icon: "fa-trophy", label: "Leaderboard" },
     { to: "/reports", icon: "fa-file-lines", label: "Reports & AAR" },

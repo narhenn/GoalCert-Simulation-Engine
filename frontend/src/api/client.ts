@@ -2,6 +2,8 @@ import type {
   AssetType, ControlType, TechniqueType, ScenarioSummary, Topology,
   RunConfig, RunSummary, SimEvent, ReportContent, Dashboard, RoleInfo, WorkflowDef,
   LiveSessionSummary, LiveMission, LabStatus, LabToolRegistry,
+  StudioDomain, StudioFault, StudioPreset, StudioSpec, StudioScenario,
+  StudioRunResult, StudioRunSummary, StudioProcedure, StudioGrade, StudioSettings,
 } from "./types";
 
 let authToken: string | null = localStorage.getItem("gc_token");
@@ -92,4 +94,30 @@ export const api = {
   labTools: () => get<LabToolRegistry>("/api/lab/tools"),
   labUp: () => post<{ ok: boolean; detail: string; command: string }>("/api/lab/up", {}),
   labDown: () => post<{ ok: boolean; detail: string; command: string }>("/api/lab/down", {}),
+
+  // ---- Scenario Studio (LLM-driven what-if + training) ----
+  studioDomains: () => get<{ domains: StudioDomain[] }>("/api/studio/domains"),
+  studioFaults: (domain: string) => get<{ domain: string; faults: StudioFault[] }>(`/api/studio/faults?domain=${domain}`),
+  studioPresets: (domain: string) => get<{ domain: string; presets: StudioPreset[] }>(`/api/studio/presets?domain=${domain}`),
+  studioScenarios: (domain?: string) =>
+    get<{ scenarios: StudioScenario[] }>(`/api/studio/scenarios${domain ? `?domain=${domain}` : ""}`),
+  studioAuthor: (body: { description: string; domain: string; kind: string; horizon_min?: number; save?: boolean }) =>
+    post<{ spec: StudioSpec; scenario: StudioScenario | null; ai_mode: string }>("/api/studio/scenarios/author", body),
+  studioDeleteScenario: (id: string) => del<{ id: string; deleted: boolean }>(`/api/studio/scenarios/${id}`),
+  studioRun: (body: { scenario_id?: string; spec?: StudioSpec; analyze?: boolean }) =>
+    post<StudioRunResult>("/api/studio/runs", body),
+  studioRuns: (limit = 25) => get<{ runs: StudioRunSummary[] }>(`/api/studio/runs?limit=${limit}`),
+  studioRunGet: (id: string) => get<StudioRunResult>(`/api/studio/runs/${id}`),
+  studioProcedure: (body: { domain: string; system: string; fault: string; title?: string; context?: string }) =>
+    post<{ procedure: StudioProcedure }>("/api/studio/training/procedure", body),
+  studioGrade: (body: { procedure: StudioProcedure; actions: { step_id: string; action: string }[] }) =>
+    post<StudioGrade>("/api/studio/training/grade", body),
+  studioDirector: (procedure: StudioProcedure) =>
+    post<{ beats: any[] }>("/api/studio/training/director", { procedure }),
+  studioCoach: (body: { messages: { role: string; content: string }[]; context: Record<string, any> }) =>
+    post<{ reply: string }>("/api/studio/training/coach", body),
+  studioSettings: () => get<StudioSettings>("/api/studio/settings"),
+  studioSaveSettings: (body: { api_key?: string; model?: string }) =>
+    post<StudioSettings>("/api/studio/settings", body),
+  studioClearKey: () => del<StudioSettings>("/api/studio/settings/key"),
 };
